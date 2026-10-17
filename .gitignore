@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# local transfer artifacts
+*.bundle
+*.tgz
+.push-token
