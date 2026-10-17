@@ -39,6 +39,15 @@ const copy = {
     cancelReport: 'Cancel report',
     hintIdle: 'Look first. Turn on reporting before you drop a pin.',
     hintReporting: 'Click the map where the barrier is.',
+    locate: 'Live location',
+    stopLocate: 'Stop location',
+    away: (distance: string) => `${distance} from campus`,
+    locDenied: 'Location permission was denied.',
+    locUnsupported: 'This browser cannot read your location.',
+    near: (title: string, verdict: string, detail: string) =>
+      `Near ${title}. ${verdict}. ${detail}`,
+    far: (distance: string, title: string, detail: string) =>
+      `You are ${distance} from campus. Fix ${title} first. ${detail}`,
     markFixed: 'Mark fixed',
     reopen: 'Report again',
     reset: 'Restore the six campus places',
@@ -98,6 +107,15 @@ const copy = {
     cancelReport: '取消上报',
     hintIdle: '先看能不能进。要标新障碍，再点上报。',
     hintReporting: '请点地图上障碍所在的位置。',
+    locate: '实时定位',
+    stopLocate: '停止定位',
+    away: (distance: string) => `离校园${distance}`,
+    locDenied: '没有获得定位权限。',
+    locUnsupported: '这个浏览器读不了位置。',
+    near: (title: string, verdict: string, detail: string) =>
+      `靠近${title}。${verdict}。${detail}`,
+    far: (distance: string, title: string, detail: string) =>
+      `你离校园大约${distance}。本周先修${title}。${detail}`,
     markFixed: '标成已经修好',
     reopen: '又遇到问题了',
     reset: '恢复校园最初的 6 个地点',

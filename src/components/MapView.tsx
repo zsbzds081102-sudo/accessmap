@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import {
+  CircleMarker,
   MapContainer,
   Marker,
   Popup,
@@ -8,6 +9,7 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
+import { distanceMeters } from '../geo'
 import { displayPin, pinGlyph, t, verdictLabel, type Lang } from '../i18n'
 import { CAMPUS_CENTER } from '../seed'
 import { placeVerdict, type AccessPin } from '../types'
@@ -57,6 +59,27 @@ function ClickToAdd({
       onPick(event.latlng.lat, event.latlng.lng)
     },
   })
+  return null
+}
+
+function FollowUser({
+  position,
+}: {
+  position: { lat: number; lng: number } | null
+}) {
+  const map = useMap()
+  const seen = useRef<string>('')
+
+  useEffect(() => {
+    if (!position) return
+    const away = distanceMeters(position.lat, position.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1])
+    if (away > 3000) return
+    const key = `${position.lat.toFixed(4)},${position.lng.toFixed(4)}`
+    if (seen.current === key) return
+    seen.current = key
+    map.panTo([position.lat, position.lng])
+  }, [map, position])
+
   return null
 }
 
@@ -137,6 +160,7 @@ function PinMarker({
 interface MapViewProps {
   pins: AccessPin[]
   lang: Lang
+  userPos: { lat: number; lng: number } | null
   draft: { lat: number; lng: number } | null
   reporting: boolean
   selectedId: string | null
@@ -148,6 +172,7 @@ interface MapViewProps {
 export function MapView({
   pins,
   lang,
+  userPos,
   draft,
   reporting,
   selectedId,
@@ -170,6 +195,14 @@ export function MapView({
       />
       <ClickToAdd enabled={reporting} onPick={onPickLocation} />
       <FocusSelected pins={pins} selectedId={selectedId} />
+      <FollowUser position={userPos} />
+      {userPos ? (
+        <CircleMarker
+          center={[userPos.lat, userPos.lng]}
+          radius={7}
+          pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#111111', fillOpacity: 1 }}
+        />
+      ) : null}
       {draft ? (
         <Marker position={[draft.lat, draft.lng]} icon={draftIcon} />
       ) : null}

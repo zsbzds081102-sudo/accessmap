@@ -270,6 +270,12 @@
 
 .popup-photo { max-width: 180px; margin-top: 6px; }
 
+.action-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .action-row .btn { width: 100%; }
 
 .btn {

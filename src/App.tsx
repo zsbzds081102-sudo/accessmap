@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AddPinForm } from './components/AddPinForm'
 import { MapView } from './components/MapView'
+import { distanceMeters, formatDistance } from './geo'
 import { displayPin, loadLang, pinGlyph, storeLang, t, verdictLabel, type Lang } from './i18n'
-import { SEED_PINS } from './seed'
+import { CAMPUS_CENTER, SEED_PINS } from './seed'
+import { speak } from './speech'
 import { loadPins, savePins } from './storage'
 import {
   BARRIER_TYPES,
@@ -43,7 +45,17 @@ export default function App() {
   const [audience, setAudience] = useState<Audience>('student')
   const [walkStep, setWalkStep] = useState(-1)
   const [lang, setLang] = useState<Lang>(() => loadLang())
+  const [locating, setLocating] = useState(false)
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null)
+  const [locError, setLocError] = useState<'denied' | 'unsupported' | null>(null)
   const [saveError, setSaveError] = useState<'quota' | null>(null)
+  const watchRef = useRef<number | null>(null)
+  const spokenRef = useRef('')
+  const skipSpeak = useRef(false)
+  const pinsRef = useRef(pins)
+  const langRef = useRef(lang)
+  pinsRef.current = pins
+  langRef.current = lang
 
   const text = t(lang)
 
@@ -53,7 +65,88 @@ export default function App() {
 
   useEffect(() => {
     storeLang(lang)
+    spokenRef.current = ''
   }, [lang])
+
+  useEffect(() => {
+    return () => {
+      if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+    }
+  }, [])
+
+  function announceHere(here: { lat: number; lng: number }) {
+    const language = langRef.current
+    const list = pinsRef.current
+    let nearest: AccessPin | null = null
+    let best = Number.POSITIVE_INFINITY
+    for (const pin of list) {
+      const meters = distanceMeters(here.lat, here.lng, pin.lat, pin.lng)
+      if (meters < best) {
+        best = meters
+        nearest = pin
+      }
+    }
+    const campus = distanceMeters(here.lat, here.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1])
+    const phrase = t(language)
+    if (nearest && best < 120) {
+      const key = `near:${nearest.id}:${language}`
+      if (spokenRef.current === key) return
+      spokenRef.current = key
+      const shown = displayPin(nearest, language)
+      skipSpeak.current = true
+      setSelectedId(nearest.id)
+      speak(phrase.near(shown.title, verdictLabel(nearest, language), shown.affects ?? shown.note), language)
+      return
+    }
+    const key = `far:${Math.round(campus / 500)}:${language}`
+    if (spokenRef.current === key) return
+    spokenRef.current = key
+    const fix = repairOrder(list).find((pin) => pin.status === 'open')
+    const shown = fix ? displayPin(fix, language) : null
+    speak(phrase.far(formatDistance(campus, language), shown?.title ?? '', shown?.affects ?? ''), language)
+  }
+
+  function toggleLocate() {
+    if (locating) {
+      if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+      watchRef.current = null
+      setLocating(false)
+      return
+    }
+    if (!navigator.geolocation) {
+      setLocError('unsupported')
+      return
+    }
+    setLocError(null)
+    setLocating(true)
+    spokenRef.current = ''
+    watchRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const here = { lat: position.coords.latitude, lng: position.coords.longitude }
+        setUserPos(here)
+        announceHere(here)
+      },
+      () => {
+        setLocError('denied')
+        setLocating(false)
+        if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+        watchRef.current = null
+      },
+      { enableHighAccuracy: true, maximumAge: 4000, timeout: 12000 },
+    )
+  }
+
+  useEffect(() => {
+    if (!selectedId) return
+    if (skipSpeak.current) {
+      skipSpeak.current = false
+      return
+    }
+    const pin = pins.find((item) => item.id === selectedId)
+    if (!pin) return
+    const shown = displayPin(pin, lang)
+    speak(`${shown.title}. ${verdictLabel(pin, lang)}. ${shown.affects ?? shown.note}`, lang)
+  }, [selectedId, lang, pins])
 
   useEffect(() => {
     if (!selectedId) return
@@ -149,6 +242,7 @@ export default function App() {
           <MapView
             pins={visiblePins}
             lang={lang}
+            userPos={userPos}
             draft={draft}
             reporting={reporting}
             selectedId={selectedId}
@@ -305,9 +399,27 @@ export default function App() {
             >
               {reporting ? text.cancelReport : text.report}
             </button>
+            <button
+              type="button"
+              className={locating ? 'btn primary' : 'btn'}
+              aria-pressed={locating}
+              onClick={toggleLocate}
+            >
+              {locating ? text.stopLocate : text.locate}
+            </button>
           </div>
 
-          <p className="hint">{reporting ? text.hintReporting : text.hintIdle}</p>
+          <p className="hint">
+            {locError === 'denied'
+              ? text.locDenied
+              : locError === 'unsupported'
+                ? text.locUnsupported
+                : userPos
+                  ? text.away(formatDistance(distanceMeters(userPos.lat, userPos.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1]), lang))
+                  : reporting
+                    ? text.hintReporting
+                    : text.hintIdle}
+          </p>
 
           {saveError ? <p className="error" role="alert">{text.saveError}</p> : null}
 
@@ -331,6 +443,11 @@ export default function App() {
               setTypeFilter('all')
               setStatusFilter('all')
               setReporting(false)
+              if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+              watchRef.current = null
+              setLocating(false)
+              setUserPos(null)
+              setLocError(null)
               setAudience('student')
               setWalkStep(-1)
             }}
