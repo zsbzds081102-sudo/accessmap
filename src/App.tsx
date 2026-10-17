@@ -112,10 +112,8 @@ export default function App() {
     )
   }
 
-  const selected = pins.find((pin) => pin.id === selectedId) ?? null
   const ordered = useMemo(() => repairOrder(pins), [pins])
   const firstFix = ordered.find((pin) => pin.status === 'open') ?? null
-  const alreadyOk = ordered.filter((pin) => pin.status !== 'open')
   const walk = walkStep >= 0 ? WALKTHROUGH[walkStep] : null
 
   function playNext() {
@@ -130,28 +128,23 @@ export default function App() {
     setDraft(null)
   }
 
+  const shown = audience === 'school' ? repairOrder(visiblePins) : visiblePins
+
   return (
     <div className="app">
       <header className="topbar">
-        <div>
+        <div className="brand">
           <p className="eyebrow">Neighborhood Hacks 2026</p>
           <h1>AccessMap</h1>
         </div>
-        <p className="campus">
-          七台河市第一中学
-          <span>
-            {openCount} 处还进不去 · {fixedCount} 处可以通行
-          </span>
-        </p>
+        <div className="campus-block">
+          <p className="campus">七台河市第一中学</p>
+          <p className="counts">
+            <span className="count bad"><strong>{openCount}</strong> 进不去</span>
+            <span className="count ok"><strong>{fixedCount}</strong> 能进入</span>
+          </p>
+        </div>
       </header>
-
-      <p className="judge-line">
-        {walk
-          ? walk.text
-          : firstFix
-            ? `${openCount} 处还进不去，${fixedCount} 处已经能进。本周先做一件事：${firstFix.title}。${firstFix.affects ?? ''}`
-            : '现在没有未解决的障碍。'}
-      </p>
 
       <div className="workspace">
         <div className="map-pane">
@@ -164,13 +157,14 @@ export default function App() {
             onSelect={setSelectedId}
             onToggleStatus={toggleStatus}
           />
+          <p className="map-legend">阶 台阶 · 坡 无坡道 · 梯 电梯故障 · 通 可通行</p>
         </div>
 
         <aside className="sidebar">
-          <div className="audience" role="group" aria-label="给谁看">
+          <div className="segmented" role="group" aria-label="给谁看">
             <button
               type="button"
-              className={audience === 'student' ? 'btn primary' : 'btn'}
+              className={audience === 'student' ? 'is-on' : ''}
               aria-pressed={audience === 'student'}
               onClick={() => setAudience('student')}
             >
@@ -178,79 +172,120 @@ export default function App() {
             </button>
             <button
               type="button"
-              className={audience === 'school' ? 'btn primary' : 'btn'}
+              className={audience === 'school' ? 'is-on' : ''}
               aria-pressed={audience === 'school'}
               onClick={() => setAudience('school')}
             >
               学校来修
             </button>
           </div>
-          <button type="button" className="btn ghost" onClick={playNext}>
-            用 20 秒看完{walk ? `（${walkStep + 1}/3）` : ''}
-          </button>
 
-          {audience === 'school' ? (
-            <section className="brief panel-card" aria-label="修缮顺序">
-              <h2>本周修缮顺序</h2>
-              <ol className="repair-list">
-                {ordered
-                  .filter((pin) => pin.status === 'open')
-                  .map((pin) => (
-                    <li key={pin.id}>
-                      <button
-                        type="button"
-                        className={pin.id === selectedId ? 'brief-item is-on' : 'brief-item'}
-                        onClick={() => setSelectedId(pin.id)}
-                      >
-                        <span className="rank">{pin.id.startsWith('seed-') ? pin.priority : '新'}</span>
-                        <span className="repair-copy">
-                          <span className="pin-title">{pin.title}</span>
-                          <span className="pin-note">{pin.affects ?? pin.note}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-              </ol>
-              {alreadyOk.length > 0 ? (
-                <p className="hint">
-                  已经能进，先不用修：{alreadyOk.map((pin) => pin.title).join('、')}
-                </p>
-              ) : null}
-            </section>
-          ) : (
-          <section className="brief panel-card" aria-label="今天能不能进">
-            <h2>今天这几处</h2>
-            <ul className="brief-list">
-              {pins
-                .filter((pin) => pin.id.startsWith('seed-'))
-                .map((pin) => {
-                  const verdict = placeVerdict(pin)
-                  return (
-                    <li key={pin.id}>
-                      <button
-                        type="button"
-                        className={pin.id === selectedId ? 'brief-item is-on' : 'brief-item'}
-                        onClick={() => setSelectedId(pin.id)}
-                      >
-                        <span>{pin.title}</span>
-                        <strong className={verdict.ok ? 'ok' : 'bad'}>{verdict.label}</strong>
-                      </button>
-                    </li>
-                  )
-                })}
-            </ul>
-          </section>
-          )}
+          <article className="decision">
+            <p className="kicker">{walk ? `演示 ${walkStep + 1} / 3` : '本周先修'}</p>
+            <h2>{walk ? (walk.audience === 'school' ? '正门坡道' : pins.find((pin) => pin.id === walk.pinId)?.title) : (firstFix?.title ?? '都已能进入')}</h2>
+            <p>
+              {walk
+                ? walk.text
+                : firstFix
+                  ? firstFix.affects ?? firstFix.note
+                  : '现在没有未解决的障碍。'}
+            </p>
+            <button type="button" className="text-btn" onClick={playNext}>
+              用 20 秒看完
+            </button>
+          </article>
 
-          <div className="action-row">
+          <div className="filters" role="group" aria-label="按能不能进筛选">
+            {(
+              [
+                ['all', '全部'],
+                ['open', '进不去'],
+                ['fixed', '能进入'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={statusFilter === value ? 'chip is-on' : 'chip'}
+                onClick={() => setStatusFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="filters" role="group" aria-label="按障碍类型筛选">
             <button
               type="button"
-              className="btn primary"
-              aria-pressed={statusFilter === 'open'}
-              onClick={() => setStatusFilter((current) => (current === 'open' ? 'all' : 'open'))}
+              className={typeFilter === 'all' ? 'chip is-on' : 'chip'}
+              onClick={() => setTypeFilter('all')}
             >
-              {statusFilter === 'open' ? '显示全部地点' : '只看还进不去的'}
+              全部类型
             </button>
+            {BARRIER_TYPES.map((type) => (
+              <button
+                key={type}
+                type="button"
+                className={typeFilter === type ? 'chip is-on' : 'chip'}
+                onClick={() => setTypeFilter(type)}
+              >
+                {BARRIER_TYPE_LABELS[type]}
+              </button>
+            ))}
+          </div>
+
+          <ul className="place-list">
+            {shown.length === 0 ? (
+              <li className="empty">这个筛选下没有地点。</li>
+            ) : (
+              shown.map((pin) => {
+                const verdict = placeVerdict(pin)
+                const open = pin.id === selectedId
+                return (
+                  <li key={pin.id} id={`pin-${pin.id}`} className={open ? 'is-open' : ''}>
+                    <button
+                      type="button"
+                      className="place"
+                      aria-expanded={open}
+                      onClick={() => setSelectedId(open ? null : pin.id)}
+                    >
+                      <span className={verdict.ok ? 'mark ok' : 'mark bad'}>
+                        {audience === 'school' && !verdict.ok ? (pin.priority ?? '新') : verdict.ok ? '通' : '阻'}
+                      </span>
+                      <span className="place-copy">
+                        <span className="place-title">{pin.title}</span>
+                        <span className="place-sub">
+                          {audience === 'school' ? (pin.affects ?? verdict.label) : verdict.label}
+                        </span>
+                      </span>
+                    </button>
+                    {open ? (
+                      <div className="place-detail">
+                        {pin.affects ? <p className="affects">{pin.affects}</p> : null}
+                        <p>{pin.note}</p>
+                        <p className="muted">
+                          {BARRIER_TYPE_LABELS[pin.type]} · {STATUS_LABELS[pin.status]}
+                        </p>
+                        {pin.photoDataUrl ? (
+                          <img src={pin.photoDataUrl} alt={`${pin.title}的照片`} className="detail-photo" />
+                        ) : null}
+                        <button
+                          type="button"
+                          className="btn"
+                          aria-pressed={pin.status === 'fixed'}
+                          onClick={() => toggleStatus(pin.id)}
+                        >
+                          {pin.status === 'open' ? '标成已经修好' : '又遇到问题了'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })
+            )}
+          </ul>
+
+          <div className="action-row">
             <button
               type="button"
               className={reporting ? 'btn' : 'btn primary'}
@@ -270,86 +305,7 @@ export default function App() {
               : '先看上面能不能进。要标新障碍，再点「我要上报障碍」。'}
           </p>
 
-          <div className="filters" role="group" aria-label="按能不能进筛选">
-            {(
-              [
-                ['all', '全部', pins.length],
-                ['open', '还进不去', openCount],
-                ['fixed', '可以通行', fixedCount],
-              ] as const
-            ).map(([value, label, count]) => (
-              <button
-                key={value}
-                type="button"
-                className={statusFilter === value ? 'chip is-on' : 'chip'}
-                onClick={() => setStatusFilter(value)}
-              >
-                {label}
-                <span>{count}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="filters" role="group" aria-label="按障碍类型筛选">
-            <button
-              type="button"
-              className={typeFilter === 'all' ? 'chip is-on' : 'chip'}
-              onClick={() => setTypeFilter('all')}
-            >
-              全部类型
-              <span>{pins.length}</span>
-            </button>
-            {BARRIER_TYPES.map((type) => (
-              <button
-                key={type}
-                type="button"
-                className={typeFilter === type ? 'chip is-on' : 'chip'}
-                onClick={() => setTypeFilter(type)}
-              >
-                {BARRIER_TYPE_LABELS[type]}
-                <span>{pins.filter((pin) => pin.type === type).length}</span>
-              </button>
-            ))}
-          </div>
-
-          <ul className="legend">
-            <li><i className="swatch stairs" /> 阶 · 台阶</li>
-            <li><i className="swatch no-ramp" /> 坡 · 没有坡道</li>
-            <li><i className="swatch elevator" /> 梯 · 电梯故障</li>
-            <li><i className="swatch other" /> 其 · 其他</li>
-            <li><i className="swatch fixed" /> 通 · 可以通行</li>
-          </ul>
-
           {saveError ? <p className="error" role="alert">{saveError}</p> : null}
-
-          {selected ? (
-            <section className="detail panel-card" aria-live="polite">
-              <p className={placeVerdict(selected).ok ? 'verdict ok' : 'verdict bad'}>
-                {placeVerdict(selected).label}
-              </p>
-              <h2>{selected.title}</h2>
-              {selected.affects ? <p className="affects">{selected.affects}</p> : null}
-              <p>{selected.note}</p>
-              <p className="muted">
-                {BARRIER_TYPE_LABELS[selected.type]} · {STATUS_LABELS[selected.status]}
-              </p>
-              {selected.photoDataUrl ? (
-                <img
-                  src={selected.photoDataUrl}
-                  alt={`${selected.title}的照片`}
-                  className="detail-photo"
-                />
-              ) : null}
-              <button
-                type="button"
-                className="btn"
-                aria-pressed={selected.status === 'fixed'}
-                onClick={() => toggleStatus(selected.id)}
-              >
-                {selected.status === 'open' ? '标成已经修好' : '又遇到问题了'}
-              </button>
-            </section>
-          ) : null}
 
           {draft ? (
             <AddPinForm
@@ -359,51 +315,6 @@ export default function App() {
               onSubmit={addPin}
             />
           ) : null}
-
-          <ul className="pin-list">
-            {visiblePins.length === 0 ? (
-              <li className="empty">这个筛选下面没有地点。</li>
-            ) : (
-              visiblePins.map((pin) => {
-                const verdict = placeVerdict(pin)
-                return (
-                  <li key={pin.id} id={`pin-${pin.id}`}>
-                    <article
-                      className={
-                        pin.id === selectedId ? 'pin-card is-selected' : 'pin-card'
-                      }
-                    >
-                      <button
-                        type="button"
-                        className="pin-select"
-                        onClick={() => setSelectedId(pin.id)}
-                      >
-                        <span className="pin-title">{pin.title}</span>
-                        <span className="pin-meta">
-                          <span className={verdict.ok ? 'status fixed' : 'status open'}>
-                            {verdict.label}
-                          </span>
-                          <span>{BARRIER_TYPE_LABELS[pin.type]}</span>
-                        </span>
-                        <span className="pin-note">{pin.note}</span>
-                      </button>
-                      {pin.photoDataUrl ? (
-                        <img src={pin.photoDataUrl} alt="" className="thumb" />
-                      ) : null}
-                      <button
-                        type="button"
-                        className="btn"
-                        aria-pressed={pin.status === 'fixed'}
-                        onClick={() => toggleStatus(pin.id)}
-                      >
-                        {pin.status === 'open' ? '标成已经修好' : '又遇到问题了'}
-                      </button>
-                    </article>
-                  </li>
-                )
-              })
-            )}
-          </ul>
 
           <button
             type="button"
