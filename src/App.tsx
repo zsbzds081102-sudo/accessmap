@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AddPinForm } from './components/AddPinForm'
 import { MapView } from './components/MapView'
+import { displayPin, loadLang, pinGlyph, storeLang, t, verdictLabel, type Lang } from './i18n'
 import { SEED_PINS } from './seed'
 import { loadPins, savePins } from './storage'
 import {
-  BARRIER_TYPE_LABELS,
   BARRIER_TYPES,
-  STATUS_LABELS,
   placeVerdict,
   type AccessPin,
   type BarrierType,
@@ -18,22 +17,10 @@ type TypeFilter = BarrierType | 'all'
 type StatusFilter = PinStatus | 'all'
 type Audience = 'student' | 'school'
 
-const WALKTHROUGH: Array<{ pinId: string; audience: Audience; text: string }> = [
-  {
-    pinId: 'seed-1',
-    audience: 'student',
-    text: '正门有台阶、没有坡道。坐轮椅的同学从这里进不了学校。',
-  },
-  {
-    pinId: 'seed-2',
-    audience: 'student',
-    text: '主教学楼已经有电梯。学校不是什么都没有，课可以上。',
-  },
-  {
-    pinId: 'seed-1',
-    audience: 'school',
-    text: '所以本周只做一件事：给正门加坡道。实验楼、图书馆、体育馆排在后面。',
-  },
+const WALKTHROUGH: Array<{ pinId: string; audience: Audience; key: 'walk1' | 'walk2' | 'walk3' }> = [
+  { pinId: 'seed-1', audience: 'student', key: 'walk1' },
+  { pinId: 'seed-2', audience: 'student', key: 'walk2' },
+  { pinId: 'seed-1', audience: 'school', key: 'walk3' },
 ]
 
 function repairOrder(pins: AccessPin[]): AccessPin[] {
@@ -55,11 +42,18 @@ export default function App() {
   const [reporting, setReporting] = useState(false)
   const [audience, setAudience] = useState<Audience>('student')
   const [walkStep, setWalkStep] = useState(-1)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [lang, setLang] = useState<Lang>(() => loadLang())
+  const [saveError, setSaveError] = useState<'quota' | null>(null)
+
+  const text = t(lang)
 
   useEffect(() => {
     setSaveError(savePins(pins))
   }, [pins])
+
+  useEffect(() => {
+    storeLang(lang)
+  }, [lang])
 
   useEffect(() => {
     if (!selectedId) return
@@ -138,10 +132,14 @@ export default function App() {
           <h1>AccessMap</h1>
         </div>
         <div className="campus-block">
-          <p className="campus">七台河市第一中学</p>
+          <div className="langs" role="group" aria-label="Language">
+            <button type="button" className={lang === 'en' ? 'is-on' : ''} onClick={() => setLang('en')}>EN</button>
+            <button type="button" className={lang === 'zh' ? 'is-on' : ''} onClick={() => setLang('zh')}>中文</button>
+          </div>
+          <p className="campus">{text.campus}</p>
           <p className="counts">
-            <span className="count bad"><strong>{openCount}</strong> 进不去</span>
-            <span className="count ok"><strong>{fixedCount}</strong> 能进入</span>
+            <span className="count bad"><strong>{openCount}</strong> {text.blockedCount}</span>
+            <span className="count ok"><strong>{fixedCount}</strong> {text.openCount}</span>
           </p>
         </div>
       </header>
@@ -150,6 +148,7 @@ export default function App() {
         <div className="map-pane">
           <MapView
             pins={visiblePins}
+            lang={lang}
             draft={draft}
             reporting={reporting}
             selectedId={selectedId}
@@ -157,18 +156,18 @@ export default function App() {
             onSelect={setSelectedId}
             onToggleStatus={toggleStatus}
           />
-          <p className="map-legend">阶 台阶 · 坡 无坡道 · 梯 电梯故障 · 通 可通行</p>
+          <p className="map-legend">{text.legend}</p>
         </div>
 
         <aside className="sidebar">
-          <div className="segmented" role="group" aria-label="给谁看">
+          <div className="segmented" role="group" aria-label={text.audienceLabel}>
             <button
               type="button"
               className={audience === 'student' ? 'is-on' : ''}
               aria-pressed={audience === 'student'}
               onClick={() => setAudience('student')}
             >
-              同学上课
+              {text.student}
             </button>
             <button
               type="button"
@@ -176,31 +175,39 @@ export default function App() {
               aria-pressed={audience === 'school'}
               onClick={() => setAudience('school')}
             >
-              学校来修
+              {text.school}
             </button>
           </div>
 
           <article className="decision">
-            <p className="kicker">{walk ? `演示 ${walkStep + 1} / 3` : '本周先修'}</p>
-            <h2>{walk ? (walk.audience === 'school' ? '正门坡道' : pins.find((pin) => pin.id === walk.pinId)?.title) : (firstFix?.title ?? '都已能进入')}</h2>
+            <p className="kicker">{walk ? `${text.demo} ${walkStep + 1} / 3` : text.thisWeek}</p>
+            <h2>
+              {walk
+                ? walk.audience === 'school'
+                  ? text.gateRamp
+                  : displayPin(pins.find((pin) => pin.id === walk.pinId) ?? pins[0], lang).title
+                : firstFix
+                  ? displayPin(firstFix, lang).title
+                  : text.allClear}
+            </h2>
             <p>
               {walk
-                ? walk.text
+                ? text[walk.key]
                 : firstFix
-                  ? firstFix.affects ?? firstFix.note
-                  : '现在没有未解决的障碍。'}
+                  ? displayPin(firstFix, lang).affects
+                  : text.allClear}
             </p>
             <button type="button" className="text-btn" onClick={playNext}>
-              用 20 秒看完
+              {text.walk}
             </button>
           </article>
 
-          <div className="filters" role="group" aria-label="按能不能进筛选">
+          <div className="filters" role="group" aria-label={text.statusLabel}>
             {(
               [
-                ['all', '全部'],
-                ['open', '进不去'],
-                ['fixed', '能进入'],
+                ['all', text.all],
+                ['open', text.cannotEnter],
+                ['fixed', text.canEnter],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -214,13 +221,13 @@ export default function App() {
             ))}
           </div>
 
-          <div className="filters" role="group" aria-label="按障碍类型筛选">
+          <div className="filters" role="group" aria-label={text.typeLabel}>
             <button
               type="button"
               className={typeFilter === 'all' ? 'chip is-on' : 'chip'}
               onClick={() => setTypeFilter('all')}
             >
-              全部类型
+              {text.allTypes}
             </button>
             {BARRIER_TYPES.map((type) => (
               <button
@@ -229,17 +236,18 @@ export default function App() {
                 className={typeFilter === type ? 'chip is-on' : 'chip'}
                 onClick={() => setTypeFilter(type)}
               >
-                {BARRIER_TYPE_LABELS[type]}
+                {text.type[type]}
               </button>
             ))}
           </div>
 
           <ul className="place-list">
             {shown.length === 0 ? (
-              <li className="empty">这个筛选下没有地点。</li>
+              <li className="empty">{text.empty}</li>
             ) : (
               shown.map((pin) => {
                 const verdict = placeVerdict(pin)
+                const shownPin = displayPin(pin, lang)
                 const open = pin.id === selectedId
                 return (
                   <li key={pin.id} id={`pin-${pin.id}`} className={open ? 'is-open' : ''}>
@@ -250,24 +258,24 @@ export default function App() {
                       onClick={() => setSelectedId(open ? null : pin.id)}
                     >
                       <span className={verdict.ok ? 'mark ok' : 'mark bad'}>
-                        {audience === 'school' && !verdict.ok ? (pin.priority ?? '新') : verdict.ok ? '通' : '阻'}
+                        {audience === 'school' && !verdict.ok ? (pin.priority ?? '·') : pinGlyph(pin, lang)}
                       </span>
                       <span className="place-copy">
-                        <span className="place-title">{pin.title}</span>
+                        <span className="place-title">{shownPin.title}</span>
                         <span className="place-sub">
-                          {audience === 'school' ? (pin.affects ?? verdict.label) : verdict.label}
+                          {audience === 'school' ? (shownPin.affects ?? verdictLabel(pin, lang)) : verdictLabel(pin, lang)}
                         </span>
                       </span>
                     </button>
                     {open ? (
                       <div className="place-detail">
-                        {pin.affects ? <p className="affects">{pin.affects}</p> : null}
-                        <p>{pin.note}</p>
+                        {shownPin.affects ? <p className="affects">{shownPin.affects}</p> : null}
+                        <p>{shownPin.note}</p>
                         <p className="muted">
-                          {BARRIER_TYPE_LABELS[pin.type]} · {STATUS_LABELS[pin.status]}
+                          {text.type[pin.type]} · {text.status[pin.status]}
                         </p>
                         {pin.photoDataUrl ? (
-                          <img src={pin.photoDataUrl} alt={`${pin.title}的照片`} className="detail-photo" />
+                          <img src={pin.photoDataUrl} alt={`${shownPin.title} ${text.photoAlt}`} className="detail-photo" />
                         ) : null}
                         <button
                           type="button"
@@ -275,7 +283,7 @@ export default function App() {
                           aria-pressed={pin.status === 'fixed'}
                           onClick={() => toggleStatus(pin.id)}
                         >
-                          {pin.status === 'open' ? '标成已经修好' : '又遇到问题了'}
+                          {pin.status === 'open' ? text.markFixed : text.reopen}
                         </button>
                       </div>
                     ) : null}
@@ -295,20 +303,17 @@ export default function App() {
                 setDraft(null)
               }}
             >
-              {reporting ? '取消上报' : '我要上报障碍'}
+              {reporting ? text.cancelReport : text.report}
             </button>
           </div>
 
-          <p className="hint">
-            {reporting
-              ? '请点地图上障碍所在的位置。看地图时不会误开上报表。'
-              : '先看上面能不能进。要标新障碍，再点「我要上报障碍」。'}
-          </p>
+          <p className="hint">{reporting ? text.hintReporting : text.hintIdle}</p>
 
-          {saveError ? <p className="error" role="alert">{saveError}</p> : null}
+          {saveError ? <p className="error" role="alert">{text.saveError}</p> : null}
 
           {draft ? (
             <AddPinForm
+              lang={lang}
               draftLat={draft.lat}
               draftLng={draft.lng}
               onCancel={() => setDraft(null)}
@@ -330,7 +335,7 @@ export default function App() {
               setWalkStep(-1)
             }}
           >
-            恢复校园最初的 6 个地点
+            {text.reset}
           </button>
         </aside>
       </div>

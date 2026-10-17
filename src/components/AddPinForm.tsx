@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
+import { t, type Lang } from '../i18n'
 import {
-  BARRIER_TYPE_LABELS,
   BARRIER_TYPES,
   type AccessPin,
   type BarrierType,
@@ -39,6 +39,7 @@ function compressPhoto(file: File): Promise<string> {
 }
 
 interface AddPinFormProps {
+  lang: Lang
   draftLat: number | null
   draftLng: number | null
   onCancel: () => void
@@ -46,11 +47,13 @@ interface AddPinFormProps {
 }
 
 export function AddPinForm({
+  lang,
   draftLat,
   draftLng,
   onCancel,
   onSubmit,
 }: AddPinFormProps) {
+  const text = t(lang)
   const [title, setTitle] = useState('')
   const [type, setType] = useState<BarrierType>('stairs')
   const [note, setNote] = useState('')
@@ -87,44 +90,44 @@ export function AddPinForm({
 
   return (
     <form className="panel-card add-form" onSubmit={handleSubmit}>
-      <h3>上报这一处</h3>
+      <h3>{text.formTitle}</h3>
       <p className="muted">
-        位置 {draftLat.toFixed(5)}, {draftLng.toFixed(5)}
+        {text.formWhere} {draftLat.toFixed(5)}, {draftLng.toFixed(5)}
       </p>
       <label>
-        地点名称
+        {text.formName}
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="例如：实验楼东门台阶"
+          placeholder={text.formNamePh}
           required
         />
       </label>
       <label>
-        是什么问题
+        {text.formType}
         <select
           value={type}
           onChange={(e) => setType(e.target.value as BarrierType)}
         >
           {BARRIER_TYPES.map((t) => (
             <option key={t} value={t}>
-              {BARRIER_TYPE_LABELS[t]}
+              {text.type[t]}
             </option>
           ))}
         </select>
       </label>
       <label>
-        给我自己和其他同学的说明
+        {text.formNote}
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="例如：只有台阶，轮椅上不去，请走一楼侧门"
+          placeholder={text.formNotePh}
           rows={3}
           required
         />
       </label>
       <label>
-        照片（可以不传）
+        {text.formPhoto}
         <input
           type="file"
           accept="image/*"
@@ -136,10 +139,10 @@ export function AddPinForm({
       ) : null}
       <div className="row-actions">
         <button type="button" className="btn ghost" onClick={onCancel}>
-          取消
+          {text.cancel}
         </button>
         <button type="submit" className="btn primary">
-          保存
+          {text.save}
         </button>
       </div>
     </form>

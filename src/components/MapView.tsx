@@ -8,36 +8,16 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
+import { displayPin, pinGlyph, t, verdictLabel, type Lang } from '../i18n'
 import { CAMPUS_CENTER } from '../seed'
-import {
-  BARRIER_TYPE_LABELS,
-  STATUS_LABELS,
-  placeVerdict,
-  type AccessPin,
-  type BarrierType,
-} from '../types'
+import { placeVerdict, type AccessPin } from '../types'
 
-const TYPE_COLORS: Record<BarrierType, string> = {
-  stairs: '#b42318',
-  no_ramp: '#c2410c',
-  elevator_broken: '#7e22ce',
-  other: '#1d4ed8',
-}
-
-const TYPE_GLYPH: Record<BarrierType, string> = {
-  stairs: '阶',
-  no_ramp: '坡',
-  elevator_broken: '梯',
-  other: '其',
-}
-
-function pinIcon(type: BarrierType, status: AccessPin['status'], selected: boolean) {
-  const color = status === 'fixed' ? '#067647' : TYPE_COLORS[type]
-  const glyph = status === 'fixed' ? '通' : TYPE_GLYPH[type]
-  const size = selected ? 44 : 36
+function pinIcon(pin: AccessPin, lang: Lang, selected: boolean) {
+  const color = placeVerdict(pin).ok ? '#111111' : '#d0121a'
+  const size = selected ? 46 : 36
   return L.divIcon({
     className: 'access-pin-icon',
-    html: `<span class="pin-face${selected ? ' is-selected' : ''}" style="background:${color};width:${size}px;height:${size}px">${glyph}</span>`,
+    html: `<span class="pin-face${selected ? ' is-selected' : ''}" style="background:${color};width:${size}px;height:${size}px">${pinGlyph(pin, lang)}</span>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   })
@@ -45,7 +25,7 @@ function pinIcon(type: BarrierType, status: AccessPin['status'], selected: boole
 
 const draftIcon = L.divIcon({
   className: 'access-pin-icon',
-  html: '<span class="pin-face is-draft">新</span>',
+  html: '<span class="pin-face is-draft">+</span>',
   iconSize: [36, 36],
   iconAnchor: [18, 18],
 })
@@ -106,35 +86,39 @@ function FocusSelected({
 
 function PinMarker({
   pin,
+  lang,
   selected,
   onSelect,
   onToggleStatus,
 }: {
   pin: AccessPin
+  lang: Lang
   selected: boolean
   onSelect: (id: string) => void
   onToggleStatus: (id: string) => void
 }) {
+  const text = t(lang)
+  const shown = displayPin(pin, lang)
   return (
     <Marker
       position={[pin.lat, pin.lng]}
-      icon={pinIcon(pin.type, pin.status, selected)}
-      title={`${pin.title}，${placeVerdict(pin).label}`}
+      icon={pinIcon(pin, lang, selected)}
+      title={`${shown.title}. ${verdictLabel(pin, lang)}`}
       zIndexOffset={selected ? 1000 : 0}
       eventHandlers={{ click: () => onSelect(pin.id) }}
     >
       <Popup>
-        <strong>{pin.title}</strong>
+        <strong>{shown.title}</strong>
         <br />
-        {placeVerdict(pin).label}
+        {verdictLabel(pin, lang)}
         <br />
-        {BARRIER_TYPE_LABELS[pin.type]} · {STATUS_LABELS[pin.status]}
+        {text.type[pin.type]} · {text.status[pin.status]}
         <br />
-        {pin.note}
+        {shown.note}
         {pin.photoDataUrl ? (
           <>
             <br />
-            <img src={pin.photoDataUrl} alt={`${pin.title}的照片`} className="popup-photo" />
+            <img src={pin.photoDataUrl} alt={`${shown.title} ${text.photoAlt}`} className="popup-photo" />
           </>
         ) : null}
         <br />
@@ -143,7 +127,7 @@ function PinMarker({
           className="btn popup-toggle"
           onClick={() => onToggleStatus(pin.id)}
         >
-          {pin.status === 'open' ? '标成已经修好' : '又遇到问题了'}
+          {pin.status === 'open' ? text.markFixed : text.reopen}
         </button>
       </Popup>
     </Marker>
@@ -152,6 +136,7 @@ function PinMarker({
 
 interface MapViewProps {
   pins: AccessPin[]
+  lang: Lang
   draft: { lat: number; lng: number } | null
   reporting: boolean
   selectedId: string | null
@@ -162,6 +147,7 @@ interface MapViewProps {
 
 export function MapView({
   pins,
+  lang,
   draft,
   reporting,
   selectedId,
@@ -191,6 +177,7 @@ export function MapView({
         <PinMarker
           key={pin.id}
           pin={pin}
+          lang={lang}
           selected={selectedId === pin.id}
           onSelect={onSelect}
           onToggleStatus={onToggleStatus}

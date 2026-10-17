@@ -50,11 +50,11 @@ export function loadPins(): AccessPin[] {
   }
 }
 
-export function savePins(pins: AccessPin[]): string | null {
+export function savePins(pins: AccessPin[]): 'quota' | null {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(pins))
     return null
   } catch {
-    return '这个浏览器存不下了。照片请换小一点的。'
+    return 'quota'
   }
 }
