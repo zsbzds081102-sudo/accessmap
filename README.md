@@ -11,7 +11,9 @@
 
 ## Live demo
 
-（部署后把公网链接写在这里。）
+- **GitHub Pages (stable):** https://zsbzds081102-sudo.github.io/accessmap/
+- Temporary Vercel preview may expire; claim a permanent Vercel deploy with `vercel login` then `npx vercel --yes` from this folder.
+
 
 ## 本地预览 / Run locally
 
