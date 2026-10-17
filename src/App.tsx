@@ -49,6 +49,7 @@ export default function App() {
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null)
   const [locError, setLocError] = useState<'denied' | 'unsupported' | null>(null)
   const [saveError, setSaveError] = useState<'quota' | null>(null)
+  const [caption, setCaption] = useState('')
   const watchRef = useRef<number | null>(null)
   const spokenRef = useRef('')
   const skipSpeak = useRef(false)
@@ -95,7 +96,9 @@ export default function App() {
       const shown = displayPin(nearest, language)
       skipSpeak.current = true
       setSelectedId(nearest.id)
-      speak(phrase.near(shown.title, verdictLabel(nearest, language), shown.affects ?? shown.note), language)
+      const nearLine = phrase.near(shown.title, verdictLabel(nearest, language), shown.affects ?? shown.note)
+      setCaption(nearLine)
+      speak(nearLine, language)
       return
     }
     const key = `far:${Math.round(campus / 500)}:${language}`
@@ -103,7 +106,9 @@ export default function App() {
     spokenRef.current = key
     const fix = repairOrder(list).find((pin) => pin.status === 'open')
     const shown = fix ? displayPin(fix, language) : null
-    speak(phrase.far(formatDistance(campus, language), shown?.title ?? '', shown?.affects ?? ''), language)
+    const farLine = phrase.far(formatDistance(campus, language), shown?.title ?? '', shown?.affects ?? '')
+    setCaption(farLine)
+    speak(farLine, language)
   }
 
   function toggleLocate() {
@@ -145,7 +150,9 @@ export default function App() {
     const pin = pins.find((item) => item.id === selectedId)
     if (!pin) return
     const shown = displayPin(pin, lang)
-    speak(`${shown.title}. ${verdictLabel(pin, lang)}. ${shown.affects ?? shown.note}`, lang)
+    const line = `${shown.title}. ${verdictLabel(pin, lang)}. ${shown.affects ?? shown.note}`
+    setCaption(line)
+    speak(line, lang)
   }, [selectedId, lang, pins])
 
   useEffect(() => {
@@ -284,12 +291,15 @@ export default function App() {
                   ? displayPin(firstFix, lang).title
                   : text.allClear}
             </h2>
+            {caption ? <p className="speaking">{text.speaking}</p> : null}
             <p>
-              {walk
-                ? text[walk.key]
-                : firstFix
-                  ? displayPin(firstFix, lang).affects
-                  : text.allClear}
+              {caption
+                ? caption
+                : walk
+                  ? text[walk.key]
+                  : firstFix
+                    ? displayPin(firstFix, lang).affects
+                    : text.allClear}
             </p>
             <button type="button" className="text-btn" onClick={playNext}>
               {text.walk}
@@ -450,6 +460,7 @@ export default function App() {
               setLocError(null)
               setAudience('student')
               setWalkStep(-1)
+              setCaption('')
             }}
           >
             {text.reset}
