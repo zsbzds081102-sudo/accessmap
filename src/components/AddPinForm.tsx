@@ -87,21 +87,21 @@ export function AddPinForm({
 
   return (
     <form className="panel-card add-form" onSubmit={handleSubmit}>
-      <h3>Add barrier pin</h3>
+      <h3>上报这一处</h3>
       <p className="muted">
-        Location: {draftLat.toFixed(5)}, {draftLng.toFixed(5)}
+        位置 {draftLat.toFixed(5)}, {draftLng.toFixed(5)}
       </p>
       <label>
-        Title
+        地点名称
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. East entrance stairs"
+          placeholder="例如：实验楼东门台阶"
           required
         />
       </label>
       <label>
-        Type
+        是什么问题
         <select
           value={type}
           onChange={(e) => setType(e.target.value as BarrierType)}
@@ -114,17 +114,17 @@ export function AddPinForm({
         </select>
       </label>
       <label>
-        Note
+        给我自己和其他同学的说明
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Describe the barrier…"
+          placeholder="例如：只有台阶，轮椅上不去，请走一楼侧门"
           rows={3}
           required
         />
       </label>
       <label>
-        Photo (optional)
+        照片（可以不传）
         <input
           type="file"
           accept="image/*"
@@ -136,10 +136,10 @@ export function AddPinForm({
       ) : null}
       <div className="row-actions">
         <button type="button" className="btn ghost" onClick={onCancel}>
-          Cancel
+          取消
         </button>
         <button type="submit" className="btn primary">
-          Save pin
+          保存
         </button>
       </div>
     </form>

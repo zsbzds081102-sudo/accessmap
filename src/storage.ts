@@ -34,11 +34,17 @@ export function loadPins(): AccessPin[] {
     if (!Array.isArray(parsed)) return SEED_PINS.map((pin) => ({ ...pin }))
     const stored = parsed.filter(isPin)
     if (stored.length === 0) return SEED_PINS.map((pin) => ({ ...pin }))
-    const seen = new Set(stored.map((pin) => pin.id))
+    const seedsById = new Map(SEED_PINS.map((pin) => [pin.id, pin]))
+    const merged = stored.map((pin) => {
+      const seed = seedsById.get(pin.id)
+      if (!seed) return pin
+      return { ...seed, status: pin.status, photoDataUrl: pin.photoDataUrl }
+    })
+    const seen = new Set(merged.map((pin) => pin.id))
     const missingSeeds = SEED_PINS.filter((pin) => !seen.has(pin.id)).map((pin) => ({
       ...pin,
     }))
-    return [...missingSeeds, ...stored]
+    return [...missingSeeds, ...merged]
   } catch {
     return SEED_PINS.map((pin) => ({ ...pin }))
   }
@@ -49,6 +55,6 @@ export function savePins(pins: AccessPin[]): string | null {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(pins))
     return null
   } catch {
-    return 'Could not save pins in this browser. Try a smaller photo.'
+    return '这个浏览器存不下了。照片请换小一点的。'
   }
 }
