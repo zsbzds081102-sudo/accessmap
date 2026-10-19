@@ -171,8 +171,13 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedId) return
+    if (walkStep >= 0) {
+      // The demo reads from the top card; do not let the list push it offscreen.
+      bodyRef.current?.scrollTo({ top: 0 })
+      return
+    }
     document.getElementById(`pin-${selectedId}`)?.scrollIntoView({ block: 'nearest' })
-  }, [selectedId])
+  }, [selectedId, walkStep])
 
   const openCount = useMemo(
     () => pins.filter((pin) => pin.status === 'open').length,
