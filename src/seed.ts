@@ -85,3 +85,15 @@ export const SEED_PINS: AccessPin[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
 ]
+
+/** Tight rectangle around the demo pins, so the first screen frames the campus. */
+export const CAMPUS_BOUNDS: [[number, number], [number, number]] = [
+  [
+    Math.min(...SEED_PINS.map((pin) => pin.lat)),
+    Math.min(...SEED_PINS.map((pin) => pin.lng)),
+  ],
+  [
+    Math.max(...SEED_PINS.map((pin) => pin.lat)),
+    Math.max(...SEED_PINS.map((pin) => pin.lng)),
+  ],
+]

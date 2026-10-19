@@ -11,7 +11,7 @@ import {
 import L from 'leaflet'
 import { distanceMeters } from '../geo'
 import { displayPin, pinGlyph, t, verdictLabel, type Lang } from '../i18n'
-import { CAMPUS_CENTER } from '../seed'
+import { CAMPUS_BOUNDS, CAMPUS_CENTER } from '../seed'
 import { placeVerdict, type AccessPin } from '../types'
 
 function pinIcon(pin: AccessPin, lang: Lang, selected: boolean) {
@@ -86,9 +86,11 @@ function FollowUser({
 function FocusSelected({
   pins,
   selectedId,
+  focusZoom,
 }: {
   pins: AccessPin[]
   selectedId: string | null
+  focusZoom: number
 }) {
   const map = useMap()
   const pinsRef = useRef(pins)
@@ -99,10 +101,10 @@ function FocusSelected({
     const pin = pinsRef.current.find((item) => item.id === selectedId)
     if (!pin) return
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    map.flyTo([pin.lat, pin.lng], Math.max(map.getZoom(), 16), {
+    map.flyTo([pin.lat, pin.lng], Math.max(map.getZoom(), focusZoom), {
       duration: reduceMotion ? 0 : 0.45,
     })
-  }, [map, selectedId])
+  }, [map, selectedId, focusZoom])
 
   return null
 }
@@ -164,6 +166,7 @@ interface MapViewProps {
   draft: { lat: number; lng: number } | null
   reporting: boolean
   selectedId: string | null
+  focusZoom: number
   onPickLocation: (lat: number, lng: number) => void
   onSelect: (id: string) => void
   onToggleStatus: (id: string) => void
@@ -176,46 +179,49 @@ export function MapView({
   draft,
   reporting,
   selectedId,
+  focusZoom,
   onPickLocation,
   onSelect,
   onToggleStatus,
 }: MapViewProps) {
   return (
-    <MapContainer
-      center={CAMPUS_CENTER}
-      zoom={16}
-      className={reporting ? 'map-container is-reporting' : 'map-container'}
-      scrollWheelZoom
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.amap.com/">高德地图</a>'
-        url="https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}"
-        subdomains="1234"
-        maxZoom={18}
-      />
-      <ClickToAdd enabled={reporting} onPick={onPickLocation} />
-      <FocusSelected pins={pins} selectedId={selectedId} />
-      <FollowUser position={userPos} />
-      {userPos ? (
-        <CircleMarker
-          center={[userPos.lat, userPos.lng]}
-          radius={7}
-          pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#111111', fillOpacity: 1 }}
+    <div className="map-frame" role="region" aria-label={t(lang).mapLabel}>
+      <MapContainer
+        bounds={CAMPUS_BOUNDS}
+        boundsOptions={{ padding: [56, 56], maxZoom: 17 }}
+        className={reporting ? 'map-container is-reporting' : 'map-container'}
+        scrollWheelZoom
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.amap.com/">高德地图</a>'
+          url="https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}"
+          subdomains="1234"
+          maxZoom={18}
         />
-      ) : null}
-      {draft ? (
-        <Marker position={[draft.lat, draft.lng]} icon={draftIcon} />
-      ) : null}
-      {pins.map((pin) => (
-        <PinMarker
-          key={pin.id}
-          pin={pin}
-          lang={lang}
-          selected={selectedId === pin.id}
-          onSelect={onSelect}
-          onToggleStatus={onToggleStatus}
-        />
-      ))}
-    </MapContainer>
+        <ClickToAdd enabled={reporting} onPick={onPickLocation} />
+        <FocusSelected pins={pins} selectedId={selectedId} focusZoom={focusZoom} />
+        <FollowUser position={userPos} />
+        {userPos ? (
+          <CircleMarker
+            center={[userPos.lat, userPos.lng]}
+            radius={7}
+            pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#111111', fillOpacity: 1 }}
+          />
+        ) : null}
+        {draft ? (
+          <Marker position={[draft.lat, draft.lng]} icon={draftIcon} />
+        ) : null}
+        {pins.map((pin) => (
+          <PinMarker
+            key={pin.id}
+            pin={pin}
+            lang={lang}
+            selected={selectedId === pin.id}
+            onSelect={onSelect}
+            onToggleStatus={onToggleStatus}
+          />
+        ))}
+      </MapContainer>
+    </div>
   )
 }

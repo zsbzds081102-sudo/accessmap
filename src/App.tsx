@@ -253,6 +253,7 @@ export default function App() {
             draft={draft}
             reporting={reporting}
             selectedId={selectedId}
+            focusZoom={walkStep >= 0 ? 17 : 16}
             onPickLocation={(lat, lng) => setDraft({ lat, lng })}
             onSelect={setSelectedId}
             onToggleStatus={toggleStatus}
@@ -291,18 +292,34 @@ export default function App() {
                   ? displayPin(firstFix, lang).title
                   : text.allClear}
             </h2>
-            {caption ? <p className="speaking">{text.speaking}</p> : null}
-            <p>
-              {caption
-                ? caption
-                : walk
-                  ? text[walk.key]
+            {caption && !walk ? <p className="speaking">{text.speaking}</p> : null}
+            <p className="story">
+              {walk
+                ? text[walk.key]
+                : caption
+                  ? caption
                   : firstFix
                     ? displayPin(firstFix, lang).affects
                     : text.allClear}
             </p>
+            {walk && caption ? (
+              <p className="spoken-line">
+                <span>{text.speaking}</span>
+                {caption}
+              </p>
+            ) : null}
+            {walk ? (
+              <div className="walk-dots" aria-hidden="true">
+                {WALKTHROUGH.map((beat, index) => (
+                  <span
+                    key={beat.key}
+                    className={index === walkStep ? 'is-on' : index < walkStep ? 'is-done' : ''}
+                  />
+                ))}
+              </div>
+            ) : null}
             <button type="button" className="text-btn" onClick={playNext}>
-              {text.walk}
+              {walkStep < 0 ? text.walk : walkStep === WALKTHROUGH.length - 1 ? text.replay : text.next}
             </button>
           </article>
 
