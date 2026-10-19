@@ -458,6 +458,7 @@ export default function App() {
                 <p className="picker-hint">{text.orTapMap}</p>
               </section>
             ) : null}
+            <p className="product-line">{text.productLine}</p>
             <div className="segmented" role="group" aria-label={text.audienceLabel}>
             <button
               type="button"

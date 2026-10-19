@@ -16,6 +16,10 @@ export function loadLang(): Lang {
 export function storeLang(lang: Lang): void {
   localStorage.setItem(LANG_KEY, lang)
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
+  document.title =
+    lang === 'zh'
+      ? 'AccessMap · 七台河市第一中学'
+      : 'AccessMap · Qitaihe No.1 High School'
 }
 
 const copy = {
@@ -38,6 +42,7 @@ const copy = {
     placesLabel: 'Campus places',
     mapLabel: 'Campus map of Qitaihe No.1 High School. The same places are listed in the sidebar.',
     skipToMain: 'Skip to the map and report',
+    productLine: 'For wheelchair users: see what is blocked, report what you find.',
     allClear: 'Nothing is blocked.',
     gateRamp: 'Main-gate ramp',
     all: 'All',
@@ -133,6 +138,7 @@ const copy = {
     placesLabel: '校园地点',
     mapLabel: '七台河市第一中学校园地图。同样的地点也列在侧栏里。',
     skipToMain: '跳到地图和上报',
+    productLine: '给坐轮椅的同学：看哪里进不去，把新障碍报上来。',
     allClear: '现在没有未解决的障碍。',
     gateRamp: '正门坡道',
     all: '全部',

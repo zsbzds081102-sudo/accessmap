@@ -132,6 +132,14 @@
   flex-direction: column;
 }
 
+.product-line {
+  padding-left: 10px;
+  border-left: 3px solid var(--open);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .sidebar-body {
   flex: 1;
   min-height: 0;
