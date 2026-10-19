@@ -212,6 +212,11 @@ export default function App() {
   }, [selectedId, lang, pins])
 
   useEffect(() => {
+    if (selectedId) return
+    setCaption('')
+  }, [selectedId])
+
+  useEffect(() => {
     if (!selectedId) return
     if (skipScroll.current) {
       // Location-driven selection should not hide the answer card at the top.
@@ -300,6 +305,8 @@ export default function App() {
 
   const ordered = useMemo(() => repairOrder(pins), [pins])
   const firstFix = ordered.find((pin) => pin.status === 'open') ?? null
+  const selectedPin = selectedId ? (pins.find((pin) => pin.id === selectedId) ?? null) : null
+  const featured = selectedPin ?? firstFix
   const walk = walkStep >= 0 ? WALKTHROUGH[walkStep] : null
   const liveLine = walk
     ? `${text[walk.key]}${caption ? ` ${caption}` : ''}`
@@ -443,14 +450,20 @@ export default function App() {
           </div>
 
           <article className="decision">
-            <p className="kicker">{walk ? `${text.demo} ${walkStep + 1} / 3` : text.thisWeek}</p>
+            <p className="kicker">
+              {walk
+                ? `${text.demo} ${walkStep + 1} / 3`
+                : selectedPin
+                  ? text.selectedPlace
+                  : text.thisWeek}
+            </p>
             <h2>
               {walk
                 ? walk.audience === 'school'
                   ? text.gateRamp
                   : displayPin(pins.find((pin) => pin.id === walk.pinId) ?? pins[0], lang).title
-                : firstFix
-                  ? displayPin(firstFix, lang).title
+                : featured
+                  ? displayPin(featured, lang).title
                   : text.allClear}
             </h2>
             {caption && !walk ? <p className="speaking">{text.speaking}</p> : null}
@@ -459,8 +472,8 @@ export default function App() {
                 ? text[walk.key]
                 : caption
                   ? caption
-                  : firstFix
-                    ? displayPin(firstFix, lang).affects
+                  : featured
+                    ? displayPin(featured, lang).affects
                     : text.allClear}
             </p>
             {walk && caption ? (
