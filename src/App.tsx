@@ -40,7 +40,12 @@ export default function App() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<{ lat: number; lng: number } | null>(null)
+  const [draft, setDraft] = useState<{
+    lat: number
+    lng: number
+    label?: string
+    prefillTitle?: string
+  } | null>(null)
   const [reporting, setReporting] = useState(false)
   const [audience, setAudience] = useState<Audience>('student')
   const [walkStep, setWalkStep] = useState(-1)
@@ -48,13 +53,17 @@ export default function App() {
   const [sound, setSound] = useState(() => loadSound())
   const [locating, setLocating] = useState(false)
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null)
-  const [locError, setLocError] = useState<'denied' | 'unsupported' | null>(null)
+  const [locError, setLocError] = useState<'denied' | 'unsupported' | 'unavailable' | null>(null)
   const [saveError, setSaveError] = useState<'quota' | null>(null)
   const [caption, setCaption] = useState('')
+  const [toast, setToast] = useState<{ id: number; message: string; undo?: () => void } | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const toastTimer = useRef<number | null>(null)
   const watchRef = useRef<number | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const spokenRef = useRef('')
   const skipSpeak = useRef(false)
+  const skipScroll = useRef(false)
   const pinsRef = useRef(pins)
   const langRef = useRef(lang)
   const soundRef = useRef(sound)
@@ -67,6 +76,21 @@ export default function App() {
   useEffect(() => {
     setSaveError(savePins(pins))
   }, [pins])
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current != null) window.clearTimeout(toastTimer.current)
+    }
+  }, [])
+
+  function showToast(message: string, undo?: () => void) {
+    if (toastTimer.current != null) window.clearTimeout(toastTimer.current)
+    const id = Date.now()
+    setToast({ id, message, undo })
+    toastTimer.current = window.setTimeout(() => {
+      setToast((current) => (current?.id === id ? null : current))
+    }, 7000)
+  }
 
   useEffect(() => {
     if (!draft) return
@@ -109,6 +133,7 @@ export default function App() {
       spokenRef.current = key
       const shown = displayPin(nearest, language)
       skipSpeak.current = true
+      skipScroll.current = true
       setSelectedId(nearest.id)
       const nearLine = phrase.near(shown.title, verdictLabel(nearest, language), shown.affects ?? shown.note)
       setCaption(nearLine)
@@ -145,13 +170,30 @@ export default function App() {
         setUserPos(here)
         announceHere(here)
       },
-      () => {
-        setLocError('denied')
+      (error) => {
+        setLocError(error.code === 1 ? 'denied' : 'unavailable')
         setLocating(false)
         if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
         watchRef.current = null
       },
       { enableHighAccuracy: true, maximumAge: 4000, timeout: 12000 },
+    )
+  }
+
+  function locateForReport() {
+    if (!navigator.geolocation) {
+      setLocError('unsupported')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const here = { lat: position.coords.latitude, lng: position.coords.longitude }
+        setUserPos(here)
+        setLocError(null)
+        setDraft({ ...here, label: text.myLocation, prefillTitle: text.nearMeTitle })
+      },
+      (error) => setLocError(error.code === 1 ? 'denied' : 'unavailable'),
+      { enableHighAccuracy: true, timeout: 12000 },
     )
   }
 
@@ -171,6 +213,11 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedId) return
+    if (skipScroll.current) {
+      // Location-driven selection should not hide the answer card at the top.
+      skipScroll.current = false
+      return
+    }
     if (walkStep >= 0) {
       // The demo reads from the top card; do not let the list push it offscreen.
       bodyRef.current?.scrollTo({ top: 0 })
@@ -213,16 +260,42 @@ export default function App() {
     setReporting(false)
     setAudience('school')
     setWalkStep(-1)
+    showToast(text.toastReported)
   }
 
   function toggleStatus(id: string) {
+    const pin = pins.find((item) => item.id === id)
+    if (!pin) return
+    const wasOpen = pin.status === 'open'
     setPins((current) =>
-      current.map((pin) =>
-        pin.id === id
-          ? { ...pin, status: pin.status === 'open' ? 'fixed' : 'open' }
-          : pin,
+      current.map((item) =>
+        item.id === id ? { ...item, status: wasOpen ? 'fixed' : 'open' } : item,
       ),
     )
+    showToast(wasOpen ? text.toastMarkedFixed : text.toastReportedAgain, () => {
+      setPins((current) =>
+        current.map((item) => (item.id === id ? { ...item, status: pin.status } : item)),
+      )
+    })
+  }
+
+  function resetCampus() {
+    setPins(SEED_PINS.map((pin) => ({ ...pin })))
+    setSelectedId(null)
+    setDraft(null)
+    setTypeFilter('all')
+    setStatusFilter('all')
+    setReporting(false)
+    if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+    watchRef.current = null
+    setLocating(false)
+    setUserPos(null)
+    setLocError(null)
+    setAudience('student')
+    setWalkStep(-1)
+    setCaption('')
+    setConfirmReset(false)
+    showToast(text.toastRestored)
   }
 
   const ordered = useMemo(() => repairOrder(pins), [pins])
@@ -245,6 +318,21 @@ export default function App() {
   }
 
   const shown = audience === 'school' ? repairOrder(visiblePins) : visiblePins
+
+  const nearestOpen = useMemo(() => {
+    if (!userPos) return null
+    let nearest: AccessPin | null = null
+    let meters = Number.POSITIVE_INFINITY
+    for (const pin of shown) {
+      if (pin.status !== 'open') continue
+      const distance = distanceMeters(userPos.lat, userPos.lng, pin.lat, pin.lng)
+      if (distance < meters) {
+        meters = distance
+        nearest = pin
+      }
+    }
+    return nearest ? { pin: nearest, meters } : null
+  }, [shown, userPos])
 
   return (
     <div className="app">
@@ -302,8 +390,38 @@ export default function App() {
                 lang={lang}
                 draftLat={draft.lat}
                 draftLng={draft.lng}
+                defaultTitle={draft.prefillTitle ?? ''}
+                placeLabel={draft.label}
                 onSubmit={addPin}
               />
+            ) : null}
+            {reporting && !draft ? (
+              <section className="report-picker" aria-label={text.pickPlace}>
+                <p className="picker-title">{text.pickPlace}</p>
+                <div className="picker-chips">
+                  {pins.map((pin) => (
+                    <button
+                      key={pin.id}
+                      type="button"
+                      className="chip"
+                      onClick={() =>
+                        setDraft({
+                          lat: pin.lat,
+                          lng: pin.lng,
+                          label: displayPin(pin, lang).title,
+                          prefillTitle: displayPin(pin, lang).title,
+                        })
+                      }
+                    >
+                      {displayPin(pin, lang).title}
+                    </button>
+                  ))}
+                  <button type="button" className="chip locate-chip" onClick={locateForReport}>
+                    {text.useMyLocation}
+                  </button>
+                </div>
+                <p className="picker-hint">{text.orTapMap}</p>
+              </section>
             ) : null}
             <div className="segmented" role="group" aria-label={text.audienceLabel}>
             <button
@@ -410,6 +528,20 @@ export default function App() {
             ))}
           </div>
 
+          {nearestOpen ? (
+            <button
+              type="button"
+              className="nearby"
+              onClick={() => setSelectedId(nearestOpen.pin.id)}
+            >
+              <span className="nearby-label">{text.nearestBarrier}</span>
+              <span className="nearby-value">
+                {displayPin(nearestOpen.pin, lang).title} ·{' '}
+                {formatDistance(nearestOpen.meters, lang)}
+              </span>
+            </button>
+          ) : null}
+
           <ul className="place-list" aria-label={text.placesLabel}>
             {shown.length === 0 ? (
               <li className="empty">{text.empty}</li>
@@ -418,6 +550,12 @@ export default function App() {
                 const verdict = placeVerdict(pin)
                 const shownPin = displayPin(pin, lang)
                 const open = pin.id === selectedId
+                const away = userPos
+                  ? formatDistance(
+                      distanceMeters(userPos.lat, userPos.lng, pin.lat, pin.lng),
+                      lang,
+                    )
+                  : null
                 return (
                   <li key={pin.id} id={`pin-${pin.id}`} className={open ? 'is-open' : ''}>
                     <button
@@ -433,6 +571,7 @@ export default function App() {
                         <span className="place-title">{shownPin.title}</span>
                         <span className="place-sub">
                           {audience === 'school' ? (shownPin.affects ?? verdictLabel(pin, lang)) : verdictLabel(pin, lang)}
+                          {away ? ` · ${away}` : ''}
                         </span>
                       </span>
                     </button>
@@ -462,31 +601,50 @@ export default function App() {
             )}
           </ul>
 
-            <button
-              type="button"
-              className="btn ghost reset"
-              onClick={() => {
-                setPins(SEED_PINS.map((pin) => ({ ...pin })))
-                setSelectedId(null)
-                setDraft(null)
-                setTypeFilter('all')
-                setStatusFilter('all')
-                setReporting(false)
-                if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
-                watchRef.current = null
-                setLocating(false)
-                setUserPos(null)
-                setLocError(null)
-                setAudience('student')
-                setWalkStep(-1)
-                setCaption('')
-              }}
-            >
-              {text.reset}
-            </button>
+            {confirmReset ? (
+              <div className="reset-confirm" role="alertdialog" aria-label={text.resetConfirmTitle}>
+                <p>{text.resetConfirm}</p>
+                <div className="action-row">
+                  <button type="button" className="btn" onClick={resetCampus}>
+                    {text.confirmReset}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => setConfirmReset(false)}
+                  >
+                    {text.cancel}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn ghost reset"
+                onClick={() => setConfirmReset(true)}
+              >
+                {text.reset}
+              </button>
+            )}
           </div>
 
           <div className="sidebar-dock">
+            {toast ? (
+              <div className="toast-inline" role="status" aria-live="polite">
+                <span>{toast.message}</span>
+                {toast.undo ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.undo?.()
+                      setToast(null)
+                    }}
+                  >
+                    {text.undo}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {draft ? (
               <>
                 <div className="action-row">
@@ -529,11 +687,18 @@ export default function App() {
                     ? text.locDenied
                     : locError === 'unsupported'
                       ? text.locUnsupported
-                      : userPos
-                        ? text.away(formatDistance(distanceMeters(userPos.lat, userPos.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1]), lang))
+                      : locError === 'unavailable'
+                        ? text.locUnavailable
                         : reporting
                           ? text.hintReporting
-                          : text.hintIdle}
+                          : userPos
+                            ? nearestOpen && nearestOpen.meters < 120
+                              ? text.nearPlace(
+                                  displayPin(nearestOpen.pin, lang).title,
+                                  formatDistance(nearestOpen.meters, lang),
+                                )
+                              : text.away(formatDistance(distanceMeters(userPos.lat, userPos.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1]), lang))
+                            : text.hintIdle}
                 </p>
               </>
             )}

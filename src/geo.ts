@@ -16,9 +16,11 @@ export function distanceMeters(
 export function formatDistance(meters: number, lang: 'en' | 'zh'): string {
   if (meters < 1000) {
     const rounded = Math.max(1, Math.round(meters))
-    return lang === 'zh' ? `${rounded}米` : `${rounded} meters`
+    if (lang === 'zh') return `${rounded}米`
+    return `${rounded} ${rounded === 1 ? 'meter' : 'meters'}`
   }
   const kilometers = meters / 1000
   const rounded = kilometers < 10 ? kilometers.toFixed(1) : String(Math.round(kilometers))
-  return lang === 'zh' ? `${rounded}公里` : `${rounded} kilometers`
+  if (lang === 'zh') return `${rounded}公里`
+  return `${rounded} ${Number(rounded) === 1 ? 'kilometer' : 'kilometers'}`
 }

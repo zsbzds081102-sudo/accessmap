@@ -14,9 +14,14 @@ import { displayPin, pinGlyph, t, verdictLabel, type Lang } from '../i18n'
 import { CAMPUS_BOUNDS, CAMPUS_CENTER } from '../seed'
 import { placeVerdict, type AccessPin } from '../types'
 
+const TOUCH =
+  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+const PIN_SIZE = TOUCH ? 44 : 36
+const PIN_SIZE_SELECTED = TOUCH ? 54 : 46
+
 function pinIcon(pin: AccessPin, lang: Lang, selected: boolean) {
   const color = placeVerdict(pin).ok ? '#111111' : '#d0121a'
-  const size = selected ? 46 : 36
+  const size = selected ? PIN_SIZE_SELECTED : PIN_SIZE
   return L.divIcon({
     className: 'access-pin-icon',
     html: `<span class="pin-face${selected ? ' is-selected' : ''}" style="background:${color};width:${size}px;height:${size}px">${pinGlyph(pin, lang)}</span>`,
@@ -27,9 +32,9 @@ function pinIcon(pin: AccessPin, lang: Lang, selected: boolean) {
 
 const draftIcon = L.divIcon({
   className: 'access-pin-icon',
-  html: '<span class="pin-face is-draft">+</span>',
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
+  html: `<span class="pin-face is-draft" style="width:${PIN_SIZE}px;height:${PIN_SIZE}px">+</span>`,
+  iconSize: [PIN_SIZE, PIN_SIZE],
+  iconAnchor: [PIN_SIZE / 2, PIN_SIZE / 2],
 })
 
 function ClickToAdd({
@@ -206,11 +211,15 @@ export function MapView({
   onToggleStatus,
 }: MapViewProps) {
   return (
-    <div className="map-frame" role="region" aria-label={t(lang).mapLabel}>
+    <div
+      className={reporting ? 'map-frame is-reporting' : 'map-frame'}
+      role="region"
+      aria-label={t(lang).mapLabel}
+    >
       <MapContainer
         bounds={CAMPUS_BOUNDS}
         boundsOptions={{ padding: [56, 56], maxZoom: 17 }}
-        className={reporting ? 'map-container is-reporting' : 'map-container'}
+        className="map-container"
         scrollWheelZoom
       >
         <TileLayer

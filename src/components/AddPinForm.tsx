@@ -42,6 +42,8 @@ interface AddPinFormProps {
   lang: Lang
   draftLat: number | null
   draftLng: number | null
+  defaultTitle?: string
+  placeLabel?: string
   onSubmit: (pin: Omit<AccessPin, 'id' | 'createdAt' | 'status'>) => void
 }
 
@@ -49,10 +51,12 @@ export function AddPinForm({
   lang,
   draftLat,
   draftLng,
+  defaultTitle,
+  placeLabel,
   onSubmit,
 }: AddPinFormProps) {
   const text = t(lang)
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState(defaultTitle ?? '')
   const [type, setType] = useState<BarrierType>('stairs')
   const [note, setNote] = useState('')
   const [photoDataUrl, setPhotoDataUrl] = useState<string | undefined>()
@@ -90,7 +94,8 @@ export function AddPinForm({
     <form id="add-pin-form" className="panel-card add-form" onSubmit={handleSubmit}>
       <h3>{text.formTitle}</h3>
       <p className="muted">
-        {text.formWhere} {draftLat.toFixed(5)}, {draftLng.toFixed(5)}
+        {text.formWhere}:{' '}
+        {placeLabel ?? `${draftLat.toFixed(5)}, ${draftLng.toFixed(5)}`}
       </p>
       <label>
         {text.formName}
