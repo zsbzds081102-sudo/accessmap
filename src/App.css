@@ -40,6 +40,7 @@
 }
 
 .langs button {
+  position: relative;
   border: 0;
   background: transparent;
   color: #8d8d8d;
@@ -47,6 +48,13 @@
   cursor: pointer;
   font-size: 12px;
   letter-spacing: 0.08em;
+}
+
+/* Keep the hit area comfortable without moving the type. */
+.langs button::after {
+  content: '';
+  position: absolute;
+  inset: -8px -6px;
 }
 
 .langs button.is-on {
@@ -416,6 +424,11 @@
   outline-offset: 3px;
 }
 
+.leaflet-marker-icon:focus-visible .pin-face {
+  outline: 3px solid #111;
+  outline-offset: 3px;
+}
+
 .pin-face.is-draft {
   width: 36px;
   height: 36px;
@@ -425,6 +438,34 @@
 .map-container.is-reporting.leaflet-container { cursor: crosshair; }
 
 .popup-toggle { margin-top: 6px; }
+
+@media (max-width: 800px), (pointer: coarse) {
+  .chip {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  .langs button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 2px;
+  }
+
+  .segmented button { min-height: 48px; }
+
+  .text-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .add-form input,
+  .add-form select,
+  .add-form textarea {
+    font-size: 16px;
+  }
+}
 
 @media (max-width: 800px) {
   .topbar { align-items: flex-start; }

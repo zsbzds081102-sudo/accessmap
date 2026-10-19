@@ -1,6 +1,26 @@
 import type { Lang } from './i18n'
 
-export function speak(text: string, lang: Lang): void {
+const SOUND_KEY = 'accessmap-sound'
+
+/** Voice is on unless the visitor turned it off. */
+export function loadSound(): boolean {
+  try {
+    return localStorage.getItem(SOUND_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
+export function storeSound(on: boolean): void {
+  try {
+    localStorage.setItem(SOUND_KEY, on ? 'on' : 'off')
+  } catch {
+    // Private mode: the choice just does not persist.
+  }
+}
+
+export function speak(text: string, lang: Lang, enabled = true): void {
+  if (!enabled) return
   if (!text.trim() || typeof window === 'undefined' || !window.speechSynthesis) return
   window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(text)

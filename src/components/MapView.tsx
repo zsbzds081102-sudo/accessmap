@@ -124,8 +124,29 @@ function PinMarker({
 }) {
   const text = t(lang)
   const shown = displayPin(pin, lang)
+  const markerRef = useRef<L.Marker | null>(null)
+
+  useEffect(() => {
+    const element = markerRef.current?.getElement()
+    if (!element) return
+    element.setAttribute(
+      'aria-label',
+      `${shown.title}. ${verdictLabel(pin, lang)}. ${text.type[pin.type]}`,
+    )
+    // Leaflet makes the marker focusable but does not activate it from the
+    // keyboard, so Enter and Space select it like a native button.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      onSelect(pin.id)
+    }
+    element.addEventListener('keydown', onKeyDown)
+    return () => element.removeEventListener('keydown', onKeyDown)
+  }, [shown.title, pin, lang, text.type, selected, onSelect])
+
   return (
     <Marker
+      ref={markerRef}
       position={[pin.lat, pin.lng]}
       icon={pinIcon(pin, lang, selected)}
       title={`${shown.title}. ${verdictLabel(pin, lang)}`}

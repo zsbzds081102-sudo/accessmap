@@ -4,7 +4,7 @@ import { MapView } from './components/MapView'
 import { distanceMeters, formatDistance } from './geo'
 import { displayPin, loadLang, pinGlyph, storeLang, t, verdictLabel, type Lang } from './i18n'
 import { CAMPUS_CENTER, SEED_PINS } from './seed'
-import { speak } from './speech'
+import { loadSound, speak, stopSpeaking, storeSound } from './speech'
 import { loadPins, savePins } from './storage'
 import {
   BARRIER_TYPES,
@@ -45,6 +45,7 @@ export default function App() {
   const [audience, setAudience] = useState<Audience>('student')
   const [walkStep, setWalkStep] = useState(-1)
   const [lang, setLang] = useState<Lang>(() => loadLang())
+  const [sound, setSound] = useState(() => loadSound())
   const [locating, setLocating] = useState(false)
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null)
   const [locError, setLocError] = useState<'denied' | 'unsupported' | null>(null)
@@ -55,8 +56,10 @@ export default function App() {
   const skipSpeak = useRef(false)
   const pinsRef = useRef(pins)
   const langRef = useRef(lang)
+  const soundRef = useRef(sound)
   pinsRef.current = pins
   langRef.current = lang
+  soundRef.current = sound
 
   const text = t(lang)
 
@@ -68,6 +71,11 @@ export default function App() {
     storeLang(lang)
     spokenRef.current = ''
   }, [lang])
+
+  useEffect(() => {
+    storeSound(sound)
+    if (!sound) stopSpeaking()
+  }, [sound])
 
   useEffect(() => {
     return () => {
@@ -98,7 +106,7 @@ export default function App() {
       setSelectedId(nearest.id)
       const nearLine = phrase.near(shown.title, verdictLabel(nearest, language), shown.affects ?? shown.note)
       setCaption(nearLine)
-      speak(nearLine, language)
+      speak(nearLine, language, soundRef.current)
       return
     }
     const key = `far:${Math.round(campus / 500)}:${language}`
@@ -108,7 +116,7 @@ export default function App() {
     const shown = fix ? displayPin(fix, language) : null
     const farLine = phrase.far(formatDistance(campus, language), shown?.title ?? '', shown?.affects ?? '')
     setCaption(farLine)
-    speak(farLine, language)
+    speak(farLine, language, soundRef.current)
   }
 
   function toggleLocate() {
@@ -152,7 +160,7 @@ export default function App() {
     const shown = displayPin(pin, lang)
     const line = `${shown.title}. ${verdictLabel(pin, lang)}. ${shown.affects ?? shown.note}`
     setCaption(line)
-    speak(line, lang)
+    speak(line, lang, soundRef.current)
   }, [selectedId, lang, pins])
 
   useEffect(() => {
@@ -209,6 +217,9 @@ export default function App() {
   const ordered = useMemo(() => repairOrder(pins), [pins])
   const firstFix = ordered.find((pin) => pin.status === 'open') ?? null
   const walk = walkStep >= 0 ? WALKTHROUGH[walkStep] : null
+  const liveLine = walk
+    ? `${text[walk.key]}${caption ? ` ${caption}` : ''}`
+    : caption
 
   function playNext() {
     const next = (walkStep + 1) % WALKTHROUGH.length
@@ -232,9 +243,18 @@ export default function App() {
           <h1>AccessMap</h1>
         </div>
         <div className="campus-block">
-          <div className="langs" role="group" aria-label="Language">
-            <button type="button" className={lang === 'en' ? 'is-on' : ''} onClick={() => setLang('en')}>EN</button>
-            <button type="button" className={lang === 'zh' ? 'is-on' : ''} onClick={() => setLang('zh')}>中文</button>
+          <div className="langs">
+            <button type="button" className={lang === 'en' ? 'is-on' : ''} aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
+            <button type="button" className={lang === 'zh' ? 'is-on' : ''} aria-pressed={lang === 'zh'} onClick={() => setLang('zh')}>中文</button>
+            <button
+              type="button"
+              className={sound ? 'is-on' : ''}
+              aria-pressed={sound}
+              title={sound ? text.voiceOff : text.voiceOn}
+              onClick={() => setSound((current) => !current)}
+            >
+              {text.voice}
+            </button>
           </div>
           <p className="campus">{text.campus}</p>
           <p className="counts">
@@ -262,6 +282,9 @@ export default function App() {
         </div>
 
         <aside className="sidebar">
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {liveLine}
+          </p>
           <div className="segmented" role="group" aria-label={text.audienceLabel}>
             <button
               type="button"
@@ -335,6 +358,7 @@ export default function App() {
                 key={value}
                 type="button"
                 className={statusFilter === value ? 'chip is-on' : 'chip'}
+                aria-pressed={statusFilter === value}
                 onClick={() => setStatusFilter(value)}
               >
                 {label}
@@ -346,6 +370,7 @@ export default function App() {
             <button
               type="button"
               className={typeFilter === 'all' ? 'chip is-on' : 'chip'}
+              aria-pressed={typeFilter === 'all'}
               onClick={() => setTypeFilter('all')}
             >
               {text.allTypes}
@@ -355,6 +380,7 @@ export default function App() {
                 key={type}
                 type="button"
                 className={typeFilter === type ? 'chip is-on' : 'chip'}
+                aria-pressed={typeFilter === type}
                 onClick={() => setTypeFilter(type)}
               >
                 {text.type[type]}
@@ -362,7 +388,7 @@ export default function App() {
             ))}
           </div>
 
-          <ul className="place-list">
+          <ul className="place-list" aria-label={text.placesLabel}>
             {shown.length === 0 ? (
               <li className="empty">{text.empty}</li>
             ) : (
