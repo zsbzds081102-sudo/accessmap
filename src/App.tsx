@@ -134,6 +134,7 @@ export default function App() {
       const shown = displayPin(nearest, language)
       skipSpeak.current = true
       skipScroll.current = true
+      bodyRef.current?.scrollTo({ top: 0 })
       setSelectedId(nearest.id)
       const nearLine = phrase.near(shown.title, verdictLabel(nearest, language), shown.affects ?? shown.note)
       setCaption(nearLine)
