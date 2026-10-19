@@ -52,6 +52,7 @@ export default function App() {
   const [saveError, setSaveError] = useState<'quota' | null>(null)
   const [caption, setCaption] = useState('')
   const watchRef = useRef<number | null>(null)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
   const spokenRef = useRef('')
   const skipSpeak = useRef(false)
   const pinsRef = useRef(pins)
@@ -66,6 +67,11 @@ export default function App() {
   useEffect(() => {
     setSaveError(savePins(pins))
   }, [pins])
+
+  useEffect(() => {
+    if (!draft) return
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [draft])
 
   useEffect(() => {
     storeLang(lang)
@@ -285,7 +291,16 @@ export default function App() {
           <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
             {liveLine}
           </p>
-          <div className="segmented" role="group" aria-label={text.audienceLabel}>
+          <div className="sidebar-body" ref={bodyRef}>
+            {draft ? (
+              <AddPinForm
+                lang={lang}
+                draftLat={draft.lat}
+                draftLng={draft.lng}
+                onSubmit={addPin}
+              />
+            ) : null}
+            <div className="segmented" role="group" aria-label={text.audienceLabel}>
             <button
               type="button"
               className={audience === 'student' ? 'is-on' : ''}
@@ -342,7 +357,9 @@ export default function App() {
               </div>
             ) : null}
             <button type="button" className="text-btn" onClick={playNext}>
-              {walkStep < 0 ? text.walk : walkStep === WALKTHROUGH.length - 1 ? text.replay : text.next}
+              <span>
+                {walkStep < 0 ? text.walk : walkStep === WALKTHROUGH.length - 1 ? text.replay : text.next}
+              </span>
             </button>
           </article>
 
@@ -440,74 +457,84 @@ export default function App() {
             )}
           </ul>
 
-          <div className="action-row">
             <button
               type="button"
-              className={reporting ? 'btn' : 'btn primary'}
-              aria-pressed={reporting}
+              className="btn ghost reset"
               onClick={() => {
-                setReporting((current) => !current)
+                setPins(SEED_PINS.map((pin) => ({ ...pin })))
+                setSelectedId(null)
                 setDraft(null)
+                setTypeFilter('all')
+                setStatusFilter('all')
+                setReporting(false)
+                if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+                watchRef.current = null
+                setLocating(false)
+                setUserPos(null)
+                setLocError(null)
+                setAudience('student')
+                setWalkStep(-1)
+                setCaption('')
               }}
             >
-              {reporting ? text.cancelReport : text.report}
-            </button>
-            <button
-              type="button"
-              className={locating ? 'btn primary' : 'btn'}
-              aria-pressed={locating}
-              onClick={toggleLocate}
-            >
-              {locating ? text.stopLocate : text.locate}
+              {text.reset}
             </button>
           </div>
 
-          <p className="hint">
-            {locError === 'denied'
-              ? text.locDenied
-              : locError === 'unsupported'
-                ? text.locUnsupported
-                : userPos
-                  ? text.away(formatDistance(distanceMeters(userPos.lat, userPos.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1]), lang))
-                  : reporting
-                    ? text.hintReporting
-                    : text.hintIdle}
-          </p>
+          <div className="sidebar-dock">
+            {draft ? (
+              <>
+                <div className="action-row">
+                  <button type="submit" form="add-pin-form" className="btn primary">
+                    {text.save}
+                  </button>
+                  <button type="button" className="btn" onClick={() => setDraft(null)}>
+                    {text.cancel}
+                  </button>
+                </div>
+                <p className="hint">{text.hintPlace}</p>
+              </>
+            ) : (
+              <>
+                <div className="action-row">
+                  <button
+                    type="button"
+                    className={reporting ? 'btn' : 'btn primary'}
+                    aria-pressed={reporting}
+                    onClick={() => {
+                      setReporting((current) => !current)
+                      setDraft(null)
+                      setWalkStep(-1)
+                    }}
+                  >
+                    {reporting ? text.cancelReport : text.report}
+                  </button>
+                  <button
+                    type="button"
+                    className={locating ? 'btn primary' : 'btn'}
+                    aria-pressed={locating}
+                    onClick={toggleLocate}
+                  >
+                    {locating ? text.stopLocate : text.locate}
+                  </button>
+                </div>
 
-          {saveError ? <p className="error" role="alert">{text.saveError}</p> : null}
+                <p className="hint">
+                  {locError === 'denied'
+                    ? text.locDenied
+                    : locError === 'unsupported'
+                      ? text.locUnsupported
+                      : userPos
+                        ? text.away(formatDistance(distanceMeters(userPos.lat, userPos.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1]), lang))
+                        : reporting
+                          ? text.hintReporting
+                          : text.hintIdle}
+                </p>
+              </>
+            )}
 
-          {draft ? (
-            <AddPinForm
-              lang={lang}
-              draftLat={draft.lat}
-              draftLng={draft.lng}
-              onCancel={() => setDraft(null)}
-              onSubmit={addPin}
-            />
-          ) : null}
-
-          <button
-            type="button"
-            className="btn ghost reset"
-            onClick={() => {
-              setPins(SEED_PINS.map((pin) => ({ ...pin })))
-              setSelectedId(null)
-              setDraft(null)
-              setTypeFilter('all')
-              setStatusFilter('all')
-              setReporting(false)
-              if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
-              watchRef.current = null
-              setLocating(false)
-              setUserPos(null)
-              setLocError(null)
-              setAudience('student')
-              setWalkStep(-1)
-              setCaption('')
-            }}
-          >
-            {text.reset}
-          </button>
+            {saveError ? <p className="error" role="alert">{text.saveError}</p> : null}
+          </div>
         </aside>
       </div>
     </div>

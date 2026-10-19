@@ -42,7 +42,6 @@ interface AddPinFormProps {
   lang: Lang
   draftLat: number | null
   draftLng: number | null
-  onCancel: () => void
   onSubmit: (pin: Omit<AccessPin, 'id' | 'createdAt' | 'status'>) => void
 }
 
@@ -50,7 +49,6 @@ export function AddPinForm({
   lang,
   draftLat,
   draftLng,
-  onCancel,
   onSubmit,
 }: AddPinFormProps) {
   const text = t(lang)
@@ -89,7 +87,7 @@ export function AddPinForm({
   }
 
   return (
-    <form className="panel-card add-form" onSubmit={handleSubmit}>
+    <form id="add-pin-form" className="panel-card add-form" onSubmit={handleSubmit}>
       <h3>{text.formTitle}</h3>
       <p className="muted">
         {text.formWhere} {draftLat.toFixed(5)}, {draftLng.toFixed(5)}
@@ -137,14 +135,6 @@ export function AddPinForm({
       {photoDataUrl ? (
         <img src={photoDataUrl} alt="Preview" className="photo-preview" />
       ) : null}
-      <div className="row-actions">
-        <button type="button" className="btn ghost" onClick={onCancel}>
-          {text.cancel}
-        </button>
-        <button type="submit" className="btn primary">
-          {text.save}
-        </button>
-      </div>
     </form>
   )
 }
