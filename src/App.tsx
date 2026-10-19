@@ -61,6 +61,7 @@ export default function App() {
   const toastTimer = useRef<number | null>(null)
   const watchRef = useRef<number | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const pickerRef = useRef<HTMLElement | null>(null)
   const spokenRef = useRef('')
   const skipSpeak = useRef(false)
   const skipScroll = useRef(false)
@@ -95,6 +96,22 @@ export default function App() {
   useEffect(() => {
     if (!draft) return
     bodyRef.current?.scrollTo({ top: 0 })
+  }, [draft])
+
+  useEffect(() => {
+    if (!reporting || draft) return
+    // Report mode can be entered while the list is scrolled; bring the choices back.
+    bodyRef.current?.scrollTo({ top: 0 })
+    pickerRef.current?.focus()
+  }, [reporting, draft])
+
+  useEffect(() => {
+    if (!draft) return
+    const finePointer = window.matchMedia('(pointer: fine)').matches
+    const target = finePointer
+      ? document.querySelector<HTMLElement>('.add-form input')
+      : document.getElementById('add-pin-form')
+    target?.focus()
   }, [draft])
 
   useEffect(() => {
@@ -407,8 +424,15 @@ export default function App() {
               />
             ) : null}
             {reporting && !draft ? (
-              <section className="report-picker" aria-label={text.pickPlace}>
-                <p className="picker-title">{text.pickPlace}</p>
+              <section
+                className="report-picker"
+                ref={pickerRef}
+                tabIndex={-1}
+                aria-labelledby="report-picker-title"
+              >
+                <p className="picker-title" id="report-picker-title">
+                  {text.pickPlace}
+                </p>
                 <div className="picker-chips">
                   {pins.map((pin) => (
                     <button

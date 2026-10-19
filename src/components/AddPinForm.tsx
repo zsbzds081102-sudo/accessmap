@@ -91,7 +91,12 @@ export function AddPinForm({
   }
 
   return (
-    <form id="add-pin-form" className="panel-card add-form" onSubmit={handleSubmit}>
+    <form
+      id="add-pin-form"
+      className="panel-card add-form"
+      tabIndex={-1}
+      onSubmit={handleSubmit}
+    >
       <h3>{text.formTitle}</h3>
       <p className="muted">
         {text.formWhere}:{' '}

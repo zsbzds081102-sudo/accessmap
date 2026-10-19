@@ -503,6 +503,13 @@
   letter-spacing: 0.02em;
 }
 
+.report-picker:focus {
+  outline: 3px solid #111;
+  outline-offset: 2px;
+}
+
+.add-form:focus { outline: none; }
+
 .picker-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .picker-hint {
