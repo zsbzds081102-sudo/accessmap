@@ -344,6 +344,9 @@ export default function App() {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#main">
+        {text.skipToMain}
+      </a>
       <header className="topbar">
         <div className="brand">
           <p className="eyebrow">Neighborhood Hacks 2026</p>
@@ -371,7 +374,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="workspace">
+      <main id="main" className="workspace" tabIndex={-1}>
         <div className="map-pane">
           <MapView
             pins={visiblePins}
@@ -720,7 +723,7 @@ export default function App() {
             {saveError ? <p className="error" role="alert">{text.saveError}</p> : null}
           </div>
         </aside>
-      </div>
+      </main>
     </div>
   )
 }

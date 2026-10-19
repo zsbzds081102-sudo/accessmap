@@ -279,7 +279,7 @@
 .filters { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .chip {
-  border: 1px solid #d0d0d0;
+  border: 1px solid #8a8a8a;
   background: #fff;
   min-height: 32px;
   padding: 4px 10px;
@@ -465,6 +465,27 @@
 }
 
 .map-frame.is-reporting .leaflet-container { cursor: crosshair; }
+
+.skip-link {
+  position: absolute;
+  top: -64px;
+  left: 12px;
+  z-index: 3000;
+  background: #111;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.skip-link:focus-visible { top: 12px; }
+
+.workspace:focus { outline: none; }
+
+.map-container.leaflet-container:focus {
+  outline: 3px solid #111;
+  outline-offset: -3px;
+}
 
 .popup-toggle { margin-top: 6px; }
 
