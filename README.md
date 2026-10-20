@@ -55,6 +55,7 @@ npm run build && npm run preview
 - 打开定位后，列表显示每个地点离你多远，并标出「离你最近的障碍」
 - 触屏地图钉 44px；定位失败会区分「没有权限」和「暂时拿不到位置」
 - 语音开关；字幕有 `aria-live` 播报，地图钉可用 Tab + Enter 选择，筛选按钮带 `aria-pressed`
+- 语音使用系统自然音色；连续定位更新会合并/排队播报，不会每来一个位置就打断上一句；Chrome 的假暂停会自动恢复
 - 语言开关是 WAI-ARIA `radiogroup`：Tab 进入，←/→ 或 Home/End 切换，`aria-checked` 同步
 - 键盘路径：Skip link 直达主内容，`main` landmark，地图获得焦点时有 3px 焦点环，筛选边界对比度 3.4:1
 

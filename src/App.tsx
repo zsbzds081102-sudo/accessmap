@@ -152,6 +152,8 @@ export default function App() {
 
   useEffect(() => {
     storeLang(lang)
+    // Do not leave an old-language sentence talking over the new UI.
+    stopSpeaking()
     spokenRef.current = ''
     // A caption is language-specific. Selected pins are re-announced below;
     // an unselected location caption would otherwise stay in the old language.
@@ -237,12 +239,15 @@ export default function App() {
       if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
       watchRef.current = null
       setLocating(false)
+      stopSpeaking()
       return
     }
     if (!navigator.geolocation) {
       setLocError('unsupported')
       return
     }
+    // Starting a new live session should not be buried under the old answer.
+    stopSpeaking()
     setLocError(null)
     setLocating(true)
     spokenRef.current = ''
@@ -290,7 +295,9 @@ export default function App() {
     const shown = displayPin(pin, lang)
     const line = `${shown.title}. ${verdictLabel(pin, lang)}. ${shown.affects ?? shown.note}`
     setCaption(line)
-    speak(line, lang, soundRef.current)
+    // A place the visitor chose is an explicit action: it may replace the
+    // sentence that is currently playing.
+    speak(line, lang, soundRef.current, true)
   }, [selectedId, lang, pins])
 
   useEffect(() => {
@@ -371,6 +378,7 @@ export default function App() {
   }
 
   function resetCampus() {
+    stopSpeaking()
     setPins(SEED_PINS.map((pin) => ({ ...pin })))
     setSelectedId(null)
     setDraft(null)
