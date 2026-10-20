@@ -1,21 +1,62 @@
 # AccessMap
 
-校园无障碍地图与障碍上报 — Neighborhood Hacks 2026 演示项目。  
+校园无障碍地图与障碍上报 — Neighborhood Hacks 2026 · Accessibility & Inclusion。
+
 演示校园：**七台河市第一中学**。
 
 **AI-assisted / 本项目由 AI 辅助完成。**
 
 **本项目也使用了 DeepSeek Harness（DeepSeek V4.1 Flash）辅助开发。** This project was also built with DeepSeek Harness (DeepSeek V4.1 Flash).
 
-## Problem / 问题
+## Why this campus
 
-轮椅使用者、受伤同学和推婴儿车的家长，常被校园台阶与缺坡道挡住。AccessMap 把障碍钉在地图上，方便同学上报、学校优先修缮。
+七台河市第一中学的日常动线很具体：从正门进校，先去主教学楼上课；实验楼、图书馆、体育馆分散在校园里。正门目前是台阶、没有坡道，坐轮椅的同学连校门都进不来；主教学楼有电梯，课可以正常上；实验楼、图书馆、体育馆虽然有电梯/楼层问题，但至少不是每天都绕不开。
+
+AccessMap 把这 6 个地点做成一张可操作的地图：同学看到障碍可以上报，「学校来修」模式会把待修地点排成一份可转发的清单。**这是 6 个手工种子点的黑客松原型，不是学校官方设施记录；上报数据只保存在本机浏览器。**
 
 ## Live demo
 
-- **GitHub Pages (stable):** https://zsbzds081102-sudo.github.io/accessmap/
-- Temporary Vercel preview may expire; claim a permanent Vercel deploy with `vercel login` then `npx vercel --yes` from this folder.
+- **GitHub Pages:** https://zsbzds081102-sudo.github.io/accessmap/
+- 默认英文；右上角 `EN / 中文` 可切换，中文布局与英文一致。
 
+## 20 秒评审路径
+
+1. 默认打开：地图框住校园，侧栏回答 **今天能不能进**——正门有台阶、无坡道，坐轮椅进不了学校。
+2. 点 **Play 20 seconds**，按 **Next** 走完三拍：正门被挡 → 主教学楼有电梯、课能上 → 切到「学校来修」，本周先修正门坡道。
+3. 在「学校来修」点 **本周修缮优先级**：一键复制纯文本、下载 CSV 或打印，直接发给后勤/班主任。
+
+语音是系统自然音色；点 **Voice** 可静音（字幕继续）。**Live location** 会报出你附近的障碍；离得远会说明离校园多远。连续地图更新会合并/排队播报，不会每来一个位置就打断上一句。
+
+## What it does
+
+- Leaflet 地图（高德底图）+ 6 个校园种子钉点，首屏自动框住校园
+- 两种视角：**Student** 回答「我今天能不能进」；**School** 给出可转发的修缮顺序
+- 上报障碍：台阶 / 没有坡道 / 电梯故障 / 其他，可加说明和照片
+- 按状态、类型筛选；未解决 ↔ 可以通行；7 秒内可撤销
+- 「恢复校园最初的 6 个地点」先确认，避免误删本机上报
+- 上报不必先点地图：可从地点列表选择，或用当前位置上报，地点名自动带出
+- 打开定位后，列表显示每处离你多远，并标出「离你最近的障碍」
+- 手机端底部固定主操作条；触屏地图钉 44px；定位失败区分「没有权限」和「暂时拿不到位置」
+- **本周修缮优先级**：在「学校来修」模式一键复制清单、下载 CSV、打印；完全在客户端完成
+
+## How the repair priority works
+
+只排 **open**（还没解决）的地点，按三类信号排序：
+
+1. 影响范围：`no ramp` / `elevator broken` 最先，`stairs` 其次，`other` 最后；
+2. 同一影响范围里，**学生上报**优先于演示种子点；
+3. 并列时按报告时间从新到旧。
+
+清单只使用当前浏览器 `localStorage` 里的数据，附带地点、类型、挡住什么、第一条学生备注；也可以导出 CSV 或打印。没有账号、没有服务器、没有云同步，也不会自动发给学校——由学生或老师自己转给后勤。
+
+## Accessibility
+
+- WAI-ARIA `radiogroup` 语言切换：Tab 进入，←/→ 或 Home/End 切换，`aria-checked` 同步
+- Skip link 直达主内容，`main` landmark；地图有 3px 焦点环，地图钉可用 Tab + Enter 选择
+- 筛选/视角按钮带 `aria-pressed`；字幕有 `aria-live`；语音只播当前语言
+- 对话框正确设置 `role="dialog"`、`aria-modal`、标题/说明关联；打开时焦点进入「复制清单」，Esc 关闭后回到触发按钮
+- 触控目标 ≥44px（筛选 chip、底部按钮），文字与边框对比度满足 WCAG AA
+- 尊重 `prefers-reduced-motion`；打印时只输出修缮清单
 
 ## 本地预览 / Run locally
 
@@ -28,36 +69,16 @@ npm install && npm run dev
 生产构建：
 
 ```bash
-npm run build && npm run preview
+npm run build
+```
+
+以 GitHub Pages 子路径构建：
+
+```bash
+BASE_PATH=/accessmap/ npm run build
 ```
 
 上报记录只存在当前浏览器的 `localStorage`。想回到最初的 6 个校园钉点，用侧栏 **恢复校园最初的 6 个地点**，或清除该站点本地存储。
-
-## 评委 20 秒
-
-默认英文，右上角可切到中文，也可以点 **Voice** 静音（字幕仍在）。语音只播当前这一种语言。点 **Live location** 后，人在校园附近会说出旁边的障碍；离得远会说出离校园多远，以及本周先修正门。点 **Play 20 seconds**，按 **Next** 走完三拍，第三拍会停在「学校来修」：
-
-1. 正门有台阶、没有坡道，坐轮椅进不了学校。
-2. 主教学楼已有电梯，课可以上。
-3. 切到「学校来修」：本周只做正门坡道，实验楼、图书馆、体育馆排在后面。
-
-## MVP 功能
-
-- Leaflet 地图（高德底图）+ 校园种子钉点，首屏自动框住校园
-- 同学上课：今天能不能进；学校来修：按影响排序的修缮顺序
-- 先点「我要上报障碍」，再点地图新增（台阶 / 没有坡道 / 电梯故障 / 其他）+ 说明 + 可选照片
-- 列表、还没解决 ↔ 可以通行
-- 按状态和类型筛选
-- `localStorage` 持久化
-- 手机端底部固定操作条，主按钮不用滚动就能点到
-- 上报不用先点地图：可从地点列表直接选，或用当前位置上报，地点名自动带出
-- 改错状态可以撤销；「恢复校园最初的 6 个地点」会先确认，避免误删上报
-- 打开定位后，列表显示每个地点离你多远，并标出「离你最近的障碍」
-- 触屏地图钉 44px；定位失败会区分「没有权限」和「暂时拿不到位置」
-- 语音开关；字幕有 `aria-live` 播报，地图钉可用 Tab + Enter 选择，筛选按钮带 `aria-pressed`
-- 语音使用系统自然音色；连续定位更新会合并/排队播报，不会每来一个位置就打断上一句；Chrome 的假暂停会自动恢复
-- 语言开关是 WAI-ARIA `radiogroup`：Tab 进入，←/→ 或 Home/End 切换，`aria-checked` 同步
-- 键盘路径：Skip link 直达主内容，`main` landmark，地图获得焦点时有 3px 焦点环，筛选边界对比度 3.4:1
 
 ## 演示种子钉点
 
@@ -74,4 +95,10 @@ npm run build && npm run preview
 
 ## Stack
 
-Vite + React + TypeScript + Leaflet / react-leaflet。底图为高德地图；钉点坐标与底图同一套，落在金沙街道校园范围内。
+Vite + React + TypeScript + Leaflet / react-leaflet。底图为高德地图；钉点坐标与底图同一套，落在金沙街道校园范围内。数据层只有 `localStorage`，没有后端、登录或付费 TTS。
+
+## 已知边界 / Deliberately not included
+
+- 只有 6 个手工种子点，不是全校完整测绘；真实校园需要现场走测和校方确认。
+- 「本周修缮优先级」是学生视角的排序建议，不是学校官方工单系统。
+- 不做账号、云同步、后端、付费地图/语音；这些会超出本次黑客松的时间盒。
