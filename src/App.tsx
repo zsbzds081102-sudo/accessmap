@@ -7,8 +7,10 @@ import {
 } from 'react'
 import { AddPinForm } from './components/AddPinForm'
 import { MapView } from './components/MapView'
+import { PriorityDialog } from './components/PriorityDialog'
 import { distanceMeters, formatDistance } from './geo'
 import { displayPin, loadLang, pinGlyph, storeLang, t, verdictLabel, type Lang } from './i18n'
+import { buildRepairText, repairOrder } from './repair'
 import { CAMPUS_CENTER, SEED_PINS } from './seed'
 import { loadSound, speak, stopSpeaking, storeSound } from './speech'
 import { loadPins, savePins } from './storage'
@@ -33,16 +35,6 @@ const WALKTHROUGH: Array<{ pinId: string; audience: Audience; key: 'walk1' | 'wa
 
 const LANG_ORDER: Lang[] = ['en', 'zh']
 
-function repairOrder(pins: AccessPin[]): AccessPin[] {
-  return [...pins].sort((a, b) => {
-    if (a.status !== b.status) return a.status === 'open' ? -1 : 1
-    const aNew = a.id.startsWith('seed-') ? 1 : 0
-    const bNew = b.id.startsWith('seed-') ? 1 : 0
-    if (aNew !== bNew) return aNew - bNew
-    return (a.priority ?? 50) - (b.priority ?? 50)
-  })
-}
-
 export default function App() {
   const [pins, setPins] = useState<AccessPin[]>(() => loadPins())
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -66,12 +58,14 @@ export default function App() {
   const [caption, setCaption] = useState('')
   const [toast, setToast] = useState<{ id: number; message: string; undo?: () => void } | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [priorityOpen, setPriorityOpen] = useState(false)
   const toastTimer = useRef<number | null>(null)
   const watchRef = useRef<number | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const pickerRef = useRef<HTMLElement | null>(null)
   const langButtons = useRef<Record<Lang, HTMLButtonElement | null>>({ en: null, zh: null })
   const reportButtonRef = useRef<HTMLButtonElement | null>(null)
+  const priorityButtonRef = useRef<HTMLButtonElement | null>(null)
   const resetButtonRef = useRef<HTMLButtonElement | null>(null)
   const resetConfirmRef = useRef<HTMLButtonElement | null>(null)
   const resetPromptOpen = useRef(false)
@@ -176,6 +170,15 @@ export default function App() {
       resetButtonRef.current?.focus()
     }
   }, [confirmReset])
+
+  useEffect(() => {
+    // Switching audience changes the card and, in school mode, inserts the
+    // export card above it. Keep the reader at the start of the new mode.
+    const frame = window.requestAnimationFrame(() => {
+      bodyRef.current?.scrollTo({ top: 0 })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [audience])
 
   useEffect(() => {
     storeSound(sound)
@@ -377,6 +380,12 @@ export default function App() {
     })
   }
 
+  function keepSidebarAtTop() {
+    window.requestAnimationFrame(() => {
+      bodyRef.current?.scrollTo({ top: 0 })
+    })
+  }
+
   function resetCampus() {
     stopSpeaking()
     setPins(SEED_PINS.map((pin) => ({ ...pin })))
@@ -398,6 +407,7 @@ export default function App() {
   }
 
   const ordered = useMemo(() => repairOrder(pins), [pins])
+  const printText = useMemo(() => buildRepairText(pins, lang), [pins, lang])
   const firstFix = ordered.find((pin) => pin.status === 'open') ?? null
   const selectedPin = selectedId ? (pins.find((pin) => pin.id === selectedId) ?? null) : null
   const featured = selectedPin ?? firstFix
@@ -451,6 +461,10 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="print-sheet" aria-hidden="true">
+        <h1>AccessMap — {text.campus}</h1>
+        <pre>{printText}</pre>
+      </div>
       <a className="skip-link" href="#main">
         {text.skipToMain}
       </a>
@@ -582,7 +596,10 @@ export default function App() {
                 <p className="picker-hint">{text.orTapMap}</p>
               </section>
             ) : null}
-            <p className="product-line">{text.productLine}</p>
+            <div className="campus-note">
+              <p className="product-line">{text.productLine}</p>
+              <p className="route-line">{text.routeLine}</p>
+            </div>
             <div className="segmented" role="group" aria-label={text.audienceLabel}>
             <button
               type="button"
@@ -591,6 +608,7 @@ export default function App() {
               onClick={() => {
                 setWalkStep(-1)
                 setAudience('student')
+                keepSidebarAtTop()
               }}
             >
               {text.student}
@@ -602,11 +620,29 @@ export default function App() {
               onClick={() => {
                 setWalkStep(-1)
                 setAudience('school')
+                keepSidebarAtTop()
               }}
             >
               {text.school}
             </button>
           </div>
+
+          {audience === 'school' && !draft ? (
+            <button
+              type="button"
+              className="priority-cta"
+              ref={priorityButtonRef}
+              aria-haspopup="dialog"
+              onClick={() => setPriorityOpen(true)}
+            >
+              <span className="priority-cta-kicker">{text.schoolAction}</span>
+              <span className="priority-cta-main">
+                <span>{text.exportCta}</span>
+                <span aria-hidden="true">→</span>
+              </span>
+              <span className="priority-cta-hint">{text.exportCtaHint}</span>
+            </button>
+          ) : null}
 
           <article className="decision">
             <p className="kicker">
@@ -903,6 +939,12 @@ export default function App() {
           </div>
         </aside>
       </main>
+      <PriorityDialog
+        open={priorityOpen}
+        pins={pins}
+        lang={lang}
+        onClose={() => setPriorityOpen(false)}
+      />
     </div>
   )
 }

@@ -1,9 +1,21 @@
 :root {
-  --bg: #f3f3f1;
-  --ink: #111111;
-  --muted: #5c5c5c;
-  --line: #d9d9d6;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --bg: #f4f1ea;
+  --paper: #fffdf8;
+  --surface: #ffffff;
+  --ink: #17201c;
+  --muted: #59645d;
+  --line: #ddd6c9;
+  --line-strong: #8a8275;
+  --accent: #a52a1f;
+  --accent-soft: #f7e8e3;
+  --ok: #245b45;
+  --ok-soft: #e7f0ea;
+  --focus: #005fcc;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Songti SC", "Noto Serif CJK SC", serif;
+  font-family: var(--font-body);
   font-size: 16px;
   color: var(--ink);
   background: var(--bg);
@@ -17,7 +29,10 @@
 
 html, body, #root { height: 100%; }
 
-body { margin: 0; }
+body {
+  margin: 0;
+  background: var(--bg);
+}
 
 button, input, select, textarea {
   font: inherit;
@@ -27,12 +42,18 @@ button, input, select, textarea {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid #111;
+textarea:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
 h1, h2, h3, p { margin: 0; }
+
+::selection {
+  background: #f1c9bf;
+  color: var(--ink);
+}
 
 /* Announcements and labels that only assistive tech should read. */
 .sr-only {
