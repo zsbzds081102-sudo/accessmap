@@ -19,9 +19,14 @@ export function repairOrder(pins: AccessPin[]): AccessPin[] {
     if (a.status !== b.status) return a.status === 'open' ? -1 : 1
     const severity = SEVERITY[b.type] - SEVERITY[a.type]
     if (severity !== 0) return severity
+    // Within one severity band, a student report is more current than the
+    // seeded demo places. This keeps the weekly list responsive.
+    const aSeed = a.id.startsWith('seed-')
+    const bSeed = b.id.startsWith('seed-')
+    if (aSeed !== bSeed) return aSeed ? 1 : -1
     const priority = (a.priority ?? 50) - (b.priority ?? 50)
     if (priority !== 0) return priority
-    return a.createdAt.localeCompare(b.createdAt)
+    return b.createdAt.localeCompare(a.createdAt)
   })
 }
 
