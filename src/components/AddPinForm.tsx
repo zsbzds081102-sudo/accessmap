@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { t, type Lang } from '../i18n'
 import {
   BARRIER_TYPES,
@@ -29,7 +29,11 @@ function compressPhoto(file: File): Promise<string> {
           return
         }
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', 0.72))
+        try {
+          resolve(canvas.toDataURL('image/jpeg', 0.72))
+        } catch {
+          reject(new Error('Could not encode photo'))
+        }
       }
       image.onerror = () => reject(new Error('Could not read photo'))
       image.src = source
@@ -57,9 +61,15 @@ export function AddPinForm({
 }: AddPinFormProps) {
   const text = t(lang)
   const [title, setTitle] = useState(defaultTitle ?? '')
+  const titleEdited = useRef(false)
   const [type, setType] = useState<BarrierType>('stairs')
   const [note, setNote] = useState('')
   const [photoDataUrl, setPhotoDataUrl] = useState<string | undefined>()
+
+  useEffect(() => {
+    // A new picker choice should retitle the form unless the visitor typed one.
+    if (!titleEdited.current) setTitle(defaultTitle ?? '')
+  }, [defaultTitle])
 
   if (draftLat == null || draftLng == null) return null
 
@@ -84,6 +94,7 @@ export function AddPinForm({
       lng: draftLng,
       photoDataUrl,
     })
+    titleEdited.current = false
     setTitle('')
     setType('stairs')
     setNote('')
@@ -93,7 +104,7 @@ export function AddPinForm({
   return (
     <form
       id="add-pin-form"
-      className="panel-card add-form"
+      className="add-form"
       tabIndex={-1}
       onSubmit={handleSubmit}
     >
@@ -106,7 +117,10 @@ export function AddPinForm({
         {text.formName}
         <input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            titleEdited.current = true
+            setTitle(e.target.value)
+          }}
           placeholder={text.formNamePh}
           required
         />
@@ -143,7 +157,7 @@ export function AddPinForm({
         />
       </label>
       {photoDataUrl ? (
-        <img src={photoDataUrl} alt="Preview" className="photo-preview" />
+        <img src={photoDataUrl} alt={text.photoPreview} className="photo-preview" />
       ) : null}
     </form>
   )

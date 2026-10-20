@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
 import { AddPinForm } from './components/AddPinForm'
 import { MapView } from './components/MapView'
 import { distanceMeters, formatDistance } from './geo'
@@ -24,6 +30,8 @@ const WALKTHROUGH: Array<{ pinId: string; audience: Audience; key: 'walk1' | 'wa
   { pinId: 'seed-2', audience: 'student', key: 'walk2' },
   { pinId: 'seed-1', audience: 'school', key: 'walk3' },
 ]
+
+const LANG_ORDER: Lang[] = ['en', 'zh']
 
 function repairOrder(pins: AccessPin[]): AccessPin[] {
   return [...pins].sort((a, b) => {
@@ -62,17 +70,45 @@ export default function App() {
   const watchRef = useRef<number | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const pickerRef = useRef<HTMLElement | null>(null)
+  const langButtons = useRef<Record<Lang, HTMLButtonElement | null>>({ en: null, zh: null })
+  const reportButtonRef = useRef<HTMLButtonElement | null>(null)
+  const resetButtonRef = useRef<HTMLButtonElement | null>(null)
+  const resetConfirmRef = useRef<HTMLButtonElement | null>(null)
+  const resetPromptOpen = useRef(false)
+  const hadDraft = useRef(false)
   const spokenRef = useRef('')
   const skipSpeak = useRef(false)
   const skipScroll = useRef(false)
   const pinsRef = useRef(pins)
   const langRef = useRef(lang)
   const soundRef = useRef(sound)
+  const selectedIdRef = useRef<string | null>(selectedId)
   pinsRef.current = pins
   langRef.current = lang
   soundRef.current = sound
+  selectedIdRef.current = selectedId
 
   const text = t(lang)
+
+  function handleLangKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const current = LANG_ORDER.indexOf(lang)
+    let next = current
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      next = (current + LANG_ORDER.length - 1) % LANG_ORDER.length
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      next = (current + 1) % LANG_ORDER.length
+    } else if (event.key === 'Home') {
+      next = 0
+    } else if (event.key === 'End') {
+      next = LANG_ORDER.length - 1
+    } else {
+      return
+    }
+    event.preventDefault()
+    const nextLang = LANG_ORDER[next]
+    setLang(nextLang)
+    langButtons.current[nextLang]?.focus()
+  }
 
   useEffect(() => {
     setSaveError(savePins(pins))
@@ -117,7 +153,27 @@ export default function App() {
   useEffect(() => {
     storeLang(lang)
     spokenRef.current = ''
+    // A caption is language-specific. Selected pins are re-announced below;
+    // an unselected location caption would otherwise stay in the old language.
+    setCaption('')
   }, [lang])
+
+  useEffect(() => {
+    // Closing the form unmounts the focused submit/cancel button, so put focus
+    // back on the control that opened it.
+    if (hadDraft.current && !draft) reportButtonRef.current?.focus()
+    hadDraft.current = Boolean(draft)
+  }, [draft])
+
+  useEffect(() => {
+    if (confirmReset) {
+      resetPromptOpen.current = true
+      resetConfirmRef.current?.focus()
+    } else if (resetPromptOpen.current) {
+      resetPromptOpen.current = false
+      resetButtonRef.current?.focus()
+    }
+  }, [confirmReset])
 
   useEffect(() => {
     storeSound(sound)
@@ -149,8 +205,10 @@ export default function App() {
       if (spokenRef.current === key) return
       spokenRef.current = key
       const shown = displayPin(nearest, language)
-      skipSpeak.current = true
-      skipScroll.current = true
+      const changed = selectedIdRef.current !== nearest.id
+      selectedIdRef.current = nearest.id
+      skipSpeak.current = changed
+      skipScroll.current = changed
       bodyRef.current?.scrollTo({ top: 0 })
       setSelectedId(nearest.id)
       const nearLine = phrase.near(shown.title, verdictLabel(nearest, language), shown.affects ?? shown.note)
@@ -164,11 +222,17 @@ export default function App() {
     const fix = repairOrder(list).find((pin) => pin.status === 'open')
     const shown = fix ? displayPin(fix, language) : null
     const farLine = phrase.far(formatDistance(campus, language), shown?.title ?? '', shown?.affects ?? '')
+    // Keep the answer card honest: a far-away reading is not about the pin the
+    // visitor selected earlier, so drop that selection before showing the line.
+    selectedIdRef.current = null
+    setSelectedId(null)
+    bodyRef.current?.scrollTo({ top: 0 })
     setCaption(farLine)
     speak(farLine, language, soundRef.current)
   }
 
   function toggleLocate() {
+    setWalkStep(-1)
     if (locating) {
       if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
       watchRef.current = null
@@ -230,11 +294,6 @@ export default function App() {
   }, [selectedId, lang, pins])
 
   useEffect(() => {
-    if (selectedId) return
-    setCaption('')
-  }, [selectedId])
-
-  useEffect(() => {
     if (!selectedId) return
     if (skipScroll.current) {
       // Location-driven selection should not hide the answer card at the top.
@@ -268,6 +327,14 @@ export default function App() {
     [pins, statusFilter, typeFilter],
   )
 
+  useEffect(() => {
+    if (!selectedId) return
+    if (visiblePins.some((pin) => pin.id === selectedId)) return
+    // The map and list no longer show this pin; do not keep answering for it.
+    setSelectedId(null)
+    setCaption('')
+  }, [selectedId, visiblePins])
+
   function addPin(input: Omit<AccessPin, 'id' | 'createdAt' | 'status'>) {
     const pin: AccessPin = {
       ...input,
@@ -290,6 +357,7 @@ export default function App() {
     const pin = pins.find((item) => item.id === id)
     if (!pin) return
     const wasOpen = pin.status === 'open'
+    setWalkStep(-1)
     setPins((current) =>
       current.map((item) =>
         item.id === id ? { ...item, status: wasOpen ? 'fixed' : 'open' } : item,
@@ -340,9 +408,23 @@ export default function App() {
     setSelectedId(beat.pinId)
     setReporting(false)
     setDraft(null)
+    setConfirmReset(false)
   }
 
-  const shown = audience === 'school' ? repairOrder(visiblePins) : visiblePins
+  const shown = useMemo(
+    () => (audience === 'school' ? repairOrder(visiblePins) : visiblePins),
+    [audience, visiblePins],
+  )
+
+  const repairRanks = useMemo(() => {
+    const ranks = new Map<string, number>()
+    shown
+      .filter((pin) => pin.status === 'open')
+      .forEach((pin, index) => {
+        ranks.set(pin.id, index + 1)
+      })
+    return ranks
+  }, [shown])
 
   const nearestOpen = useMemo(() => {
     if (!userPos) return null
@@ -365,17 +447,48 @@ export default function App() {
         {text.skipToMain}
       </a>
       <header className="topbar">
-        <div className="brand">
+        <div>
           <p className="eyebrow">Neighborhood Hacks 2026</p>
           <h1>AccessMap</h1>
         </div>
         <div className="campus-block">
-          <div className="langs">
-            <button type="button" className={lang === 'en' ? 'is-on' : ''} aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
-            <button type="button" className={lang === 'zh' ? 'is-on' : ''} aria-pressed={lang === 'zh'} onClick={() => setLang('zh')}>中文</button>
+          <div className="header-controls">
+            <div
+              className="langs"
+              role="radiogroup"
+              aria-label={text.languageLabel}
+              onKeyDown={handleLangKeyDown}
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lang === 'en'}
+                tabIndex={lang === 'en' ? 0 : -1}
+                className={lang === 'en' ? 'is-on' : ''}
+                ref={(node) => {
+                  langButtons.current.en = node
+                }}
+                onClick={() => setLang('en')}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={lang === 'zh'}
+                tabIndex={lang === 'zh' ? 0 : -1}
+                className={lang === 'zh' ? 'is-on' : ''}
+                ref={(node) => {
+                  langButtons.current.zh = node
+                }}
+                onClick={() => setLang('zh')}
+              >
+                中文
+              </button>
+            </div>
             <button
               type="button"
-              className={sound ? 'is-on' : ''}
+              className={sound ? 'voice-btn is-on' : 'voice-btn'}
               aria-pressed={sound}
               title={sound ? text.voiceOff : text.voiceOn}
               onClick={() => setSound((current) => !current)}
@@ -402,7 +515,10 @@ export default function App() {
             selectedId={selectedId}
             focusZoom={walkStep >= 0 ? 17 : 16}
             onPickLocation={(lat, lng) => setDraft({ lat, lng })}
-            onSelect={setSelectedId}
+            onSelect={(id) => {
+              setWalkStep(-1)
+              setSelectedId(id)
+            }}
             onToggleStatus={toggleStatus}
           />
           <p className="map-legend">{text.legend}</p>
@@ -451,7 +567,7 @@ export default function App() {
                       {displayPin(pin, lang).title}
                     </button>
                   ))}
-                  <button type="button" className="chip locate-chip" onClick={locateForReport}>
+                  <button type="button" className="chip" onClick={locateForReport}>
                     {text.useMyLocation}
                   </button>
                 </div>
@@ -464,7 +580,10 @@ export default function App() {
               type="button"
               className={audience === 'student' ? 'is-on' : ''}
               aria-pressed={audience === 'student'}
-              onClick={() => setAudience('student')}
+              onClick={() => {
+                setWalkStep(-1)
+                setAudience('student')
+              }}
             >
               {text.student}
             </button>
@@ -472,7 +591,10 @@ export default function App() {
               type="button"
               className={audience === 'school' ? 'is-on' : ''}
               aria-pressed={audience === 'school'}
-              onClick={() => setAudience('school')}
+              onClick={() => {
+                setWalkStep(-1)
+                setAudience('school')
+              }}
             >
               {text.school}
             </button>
@@ -592,6 +714,7 @@ export default function App() {
                 const verdict = placeVerdict(pin)
                 const shownPin = displayPin(pin, lang)
                 const open = pin.id === selectedId
+                const detailId = `pin-detail-${pin.id}`
                 const away = userPos
                   ? formatDistance(
                       distanceMeters(userPos.lat, userPos.lng, pin.lat, pin.lng),
@@ -604,10 +727,21 @@ export default function App() {
                       type="button"
                       className="place"
                       aria-expanded={open}
-                      onClick={() => setSelectedId(open ? null : pin.id)}
+                      aria-controls={open ? detailId : undefined}
+                      onClick={() => {
+                        setWalkStep(-1)
+                        if (open) {
+                          setSelectedId(null)
+                          setCaption('')
+                        } else {
+                          setSelectedId(pin.id)
+                        }
+                      }}
                     >
                       <span className={verdict.ok ? 'mark ok' : 'mark bad'}>
-                        {audience === 'school' && !verdict.ok ? (pin.priority ?? '·') : pinGlyph(pin, lang)}
+                        {audience === 'school' && !verdict.ok
+                          ? (repairRanks.get(pin.id) ?? pinGlyph(pin, lang))
+                          : pinGlyph(pin, lang)}
                       </span>
                       <span className="place-copy">
                         <span className="place-title">{shownPin.title}</span>
@@ -618,7 +752,7 @@ export default function App() {
                       </span>
                     </button>
                     {open ? (
-                      <div className="place-detail">
+                      <div className="place-detail" id={detailId}>
                         {shownPin.affects ? <p className="affects">{shownPin.affects}</p> : null}
                         <p>{shownPin.note}</p>
                         <p className="muted">
@@ -644,10 +778,19 @@ export default function App() {
           </ul>
 
             {confirmReset ? (
-              <div className="reset-confirm" role="alertdialog" aria-label={text.resetConfirmTitle}>
+              <div
+                className="reset-confirm"
+                role="alertdialog"
+                aria-label={text.resetConfirmTitle}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape') return
+                  event.preventDefault()
+                  setConfirmReset(false)
+                }}
+              >
                 <p>{text.resetConfirm}</p>
                 <div className="action-row">
-                  <button type="button" className="btn" onClick={resetCampus}>
+                  <button type="button" className="btn" ref={resetConfirmRef} onClick={resetCampus}>
                     {text.confirmReset}
                   </button>
                   <button
@@ -663,6 +806,7 @@ export default function App() {
               <button
                 type="button"
                 className="btn ghost reset"
+                ref={resetButtonRef}
                 onClick={() => setConfirmReset(true)}
               >
                 {text.reset}
@@ -704,12 +848,14 @@ export default function App() {
                 <div className="action-row">
                   <button
                     type="button"
+                    ref={reportButtonRef}
                     className={reporting ? 'btn' : 'btn primary'}
                     aria-pressed={reporting}
                     onClick={() => {
                       setReporting((current) => !current)
                       setDraft(null)
                       setWalkStep(-1)
+                      setConfirmReset(false)
                     }}
                   >
                     {reporting ? text.cancelReport : text.report}

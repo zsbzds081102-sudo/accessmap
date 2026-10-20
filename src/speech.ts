@@ -22,11 +22,16 @@ export function storeSound(on: boolean): void {
 export function speak(text: string, lang: Lang, enabled = true): void {
   if (!enabled) return
   if (!text.trim() || typeof window === 'undefined' || !window.speechSynthesis) return
-  window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US'
-  utterance.rate = 1
-  window.speechSynthesis.speak(utterance)
+  if (typeof SpeechSynthesisUtterance === 'undefined') return
+  try {
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US'
+    utterance.rate = 1
+    window.speechSynthesis.speak(utterance)
+  } catch {
+    // Speech is an enhancement; a blocked voice must not break the map.
+  }
 }
 
 export function stopSpeaking(): void {

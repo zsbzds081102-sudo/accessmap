@@ -1,15 +1,8 @@
 import { SEED_PINS } from './seed'
-import type { AccessPin, BarrierType } from './types'
+import { BARRIER_TYPES, type AccessPin } from './types'
 
 /** Bump when seed semantics change so demos pick up clearer barrier labels. */
 const STORAGE_KEY = 'accessmap-pins-v2'
-
-const BARRIER_TYPES: BarrierType[] = [
-  'stairs',
-  'no_ramp',
-  'elevator_broken',
-  'other',
-]
 
 function isPin(value: unknown): value is AccessPin {
   if (!value || typeof value !== 'object') return false

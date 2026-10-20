@@ -32,14 +32,22 @@
 
 .campus-block { text-align: right; }
 
+.header-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
 .langs {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-bottom: 6px;
 }
 
-.langs button {
+.langs button,
+.voice-btn {
   position: relative;
   border: 0;
   background: transparent;
@@ -51,13 +59,15 @@
 }
 
 /* Keep the hit area comfortable without moving the type. */
-.langs button::after {
+.langs button::after,
+.voice-btn::after {
   content: '';
   position: absolute;
   inset: -8px -6px;
 }
 
-.langs button.is-on {
+.langs button.is-on,
+.voice-btn.is-on {
   color: #fff;
   border-bottom: 1px solid #fff;
 }
@@ -467,8 +477,6 @@
 }
 
 .pin-face.is-draft {
-  width: 36px;
-  height: 36px;
   background: #111;
 }
 
@@ -597,7 +605,8 @@
     padding: 10px 12px;
   }
 
-  .langs button {
+  .langs button,
+  .voice-btn {
     display: inline-flex;
     align-items: center;
     min-height: 28px;
@@ -641,7 +650,13 @@
     gap: 2px;
   }
 
-  .langs { margin-bottom: 0; gap: 10px; }
+  .header-controls {
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+  }
+
+  .langs { gap: 10px; }
 
   .campus {
     font-size: 11px;

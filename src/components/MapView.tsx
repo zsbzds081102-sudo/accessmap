@@ -31,7 +31,7 @@ function pinIcon(pin: AccessPin, lang: Lang, selected: boolean) {
 }
 
 const draftIcon = L.divIcon({
-  className: 'access-pin-icon',
+  className: 'access-pin-icon draft-pin',
   html: `<span class="pin-face is-draft" style="width:${PIN_SIZE}px;height:${PIN_SIZE}px">+</span>`,
   iconSize: [PIN_SIZE, PIN_SIZE],
   iconAnchor: [PIN_SIZE / 2, PIN_SIZE / 2],
@@ -57,9 +57,11 @@ function ClickToAdd({
       if (!enabled || ignoreClick.current) return
       const target = event.originalEvent.target
       if (target instanceof Element) {
-        if (target.closest('.leaflet-popup, .leaflet-marker-icon, .leaflet-control')) {
-          return
-        }
+        if (target.closest('.leaflet-popup, .leaflet-control')) return
+        // The draft pin itself is not interactive, so a click on it should still
+        // move the pin. Real pins are excluded here: they select the place.
+        const marker = target.closest('.leaflet-marker-icon')
+        if (marker && !marker.classList.contains('draft-pin')) return
       }
       onPick(event.latlng.lat, event.latlng.lng)
     },
@@ -239,7 +241,12 @@ export function MapView({
           />
         ) : null}
         {draft ? (
-          <Marker position={[draft.lat, draft.lng]} icon={draftIcon} />
+          <Marker
+            position={[draft.lat, draft.lng]}
+            icon={draftIcon}
+            interactive={false}
+            keyboard={false}
+          />
         ) : null}
         {pins.map((pin) => (
           <PinMarker

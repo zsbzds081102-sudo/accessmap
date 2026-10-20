@@ -14,7 +14,11 @@ export function loadLang(): Lang {
 }
 
 export function storeLang(lang: Lang): void {
-  localStorage.setItem(LANG_KEY, lang)
+  try {
+    localStorage.setItem(LANG_KEY, lang)
+  } catch {
+    // Private mode: the language still applies for this visit.
+  }
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
   document.title =
     lang === 'zh'
@@ -39,6 +43,7 @@ const copy = {
     voice: 'Voice',
     voiceOn: 'Turn voice on',
     voiceOff: 'Turn voice off',
+    languageLabel: 'Language',
     placesLabel: 'Campus places',
     mapLabel: 'Campus map of Qitaihe No.1 High School. The same places are listed in the sidebar.',
     skipToMain: 'Skip to the map and report',
@@ -85,6 +90,7 @@ const copy = {
     reset: 'Restore the six campus places',
     saveError: 'This browser could not save the photo. Try a smaller one.',
     photoAlt: 'Photo',
+    photoPreview: 'Photo preview',
     legend: 'ST stairs · NR no ramp · EL elevator · OK passable',
     audienceLabel: 'Who is looking',
     statusLabel: 'Filter by access',
@@ -135,6 +141,7 @@ const copy = {
     voice: '语音',
     voiceOn: '打开语音',
     voiceOff: '关闭语音',
+    languageLabel: '语言',
     placesLabel: '校园地点',
     mapLabel: '七台河市第一中学校园地图。同样的地点也列在侧栏里。',
     skipToMain: '跳到地图和上报',
@@ -181,6 +188,7 @@ const copy = {
     reset: '恢复校园最初的 6 个地点',
     saveError: '这个浏览器存不下了。照片请换小一点的。',
     photoAlt: '的照片',
+    photoPreview: '照片预览',
     legend: '阶 台阶 · 坡 无坡道 · 梯 电梯故障 · 通 可通行',
     audienceLabel: '给谁看',
     statusLabel: '按能不能进筛选',
@@ -217,7 +225,7 @@ const copy = {
   },
 }
 
-export type Copy = (typeof copy)['en']
+type Copy = (typeof copy)['en']
 
 export function t(lang: Lang): Copy {
   return copy[lang]
