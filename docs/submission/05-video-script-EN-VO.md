@@ -1,0 +1,2 @@
+# Optional English voice-over
+Hi, I’m a senior at Qitaihe No.1 High School in Heilongjiang, China. Our main gate has stairs and no ramp—wheelchair users can’t enter with everyone else. AccessMap is a campus accessibility map: students report barriers, and the school view ranks what to fix first, then exports a list for facilities staff. Watch Play 20 seconds, then open Repair priorities to copy or download this week’s list. Thanks for watching.
