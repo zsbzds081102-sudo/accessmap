@@ -1,4 +1,4 @@
-import { displayPin, t, type Lang } from './i18n'
+import { displayPin, observationEvidence, t, type Lang } from './i18n'
 import type { AccessPin, BarrierType } from './types'
 
 /**
@@ -83,7 +83,11 @@ export function buildRepairText(pins: AccessPin[], lang: Lang): string {
       lines.push(`${item.rank}. ${item.title} — ${text.type[item.pin.type]}`)
       lines.push(`   ${text.exportBlocks}: ${item.blocks}`)
       lines.push(`   ${text.exportNote}: ${item.note}`)
-      lines.push(`   ${text.exportPin}: ${item.pin.lat.toFixed(5)}, ${item.pin.lng.toFixed(5)}`)
+      const evidence = observationEvidence(item.pin, lang)
+      lines.push(`   ${text.recordId}: ${item.pin.id} · ${evidence.kind}`)
+      lines.push(`   ${text.observedOn}: ${evidence.date} · ${text.observationSource}: ${evidence.source}`)
+      const coordinates = `${item.pin.lat.toFixed(5)}, ${item.pin.lng.toFixed(5)}`
+      lines.push(`   ${text.exportPin}: ${coordinates} · ${item.pin.coordinateSystem ?? text.unknownCoords}`)
       lines.push('')
     }
   }
@@ -94,21 +98,36 @@ export function buildRepairText(pins: AccessPin[], lang: Lang): string {
 }
 
 function csvCell(value: string | number): string {
-  const normalized = String(value).replace(/\r?\n/g, ' ').trim()
+  const normalized = String(value).replace(/[\r\n]+/g, ' ').trim()
   return `"${normalized.replace(/"/g, '""')}"`
+}
+
+function spreadsheetText(value: string): string {
+  return /^[=+@-]/.test(value.trimStart()) ? `'${value}` : value
 }
 
 export function buildRepairCsv(pins: AccessPin[], lang: Lang): string {
   const text = t(lang)
-  const header = ['priority', 'place', 'barrier', 'blocks', 'student_note', 'latitude', 'longitude']
-  const rows = buildRepairPriorities(pins, lang).map((item) => [
-    item.rank,
-    item.title,
-    text.type[item.pin.type],
-    item.blocks,
-    item.note,
-    item.pin.lat.toFixed(5),
-    item.pin.lng.toFixed(5),
-  ])
+  const header = [
+    'priority', 'place', 'barrier', 'blocks', 'student_note', 'latitude', 'longitude',
+    'coordinate_system', 'record_id', 'record_kind', 'observed_on', 'observation_source',
+  ]
+  const rows = buildRepairPriorities(pins, lang).map((item) => {
+    const evidence = observationEvidence(item.pin, lang)
+    return [
+      item.rank,
+      spreadsheetText(item.title),
+      text.type[item.pin.type],
+      spreadsheetText(item.blocks),
+      spreadsheetText(item.note),
+      item.pin.lat.toFixed(5),
+      item.pin.lng.toFixed(5),
+      item.pin.coordinateSystem ?? 'unknown',
+      spreadsheetText(item.pin.id),
+      evidence.kind,
+      spreadsheetText(evidence.date),
+      spreadsheetText(evidence.source),
+    ]
+  })
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')
 }

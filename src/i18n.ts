@@ -1,5 +1,6 @@
 import type { AccessPin, BarrierType, PinStatus } from './types'
 import { placeVerdict } from './types'
+import { SEED_PINS } from './seed'
 
 export type Lang = 'en' | 'zh'
 
@@ -28,6 +29,7 @@ export function storeLang(lang: Lang): void {
 
 const copy = {
   en: {
+    postContest: 'Neighborhood Hacks 2026 · Post-contest iteration',
     campus: 'Qitaihe No.1 High School',
     blockedCount: 'blocked',
     openCount: 'passable',
@@ -47,13 +49,13 @@ const copy = {
     placesLabel: 'Campus places',
     mapLabel: 'Campus map of Qitaihe No.1 High School. The same places are listed in the sidebar.',
     skipToMain: 'Skip to the map and report',
-    productLine: 'Qitaihe No.1 High School, mapped for wheelchair access. Check each entrance before class.',
+    productLine: 'Demo records for wheelchair access at Qitaihe No.1 High School.',
     routeLine: 'Mapped places: main gate, teaching building, labs, library, cafeteria, gym.',
     schoolAction: 'For the school',
     exportCta: "This week's repair priorities",
     exportCtaHint: 'Copy a short list for the facilities office or class teacher.',
     exportDialogLabel: 'Repair priorities',
-    exportIntro: 'Ranked from the student reports on this device. Send it in WeChat, email, or print it.',
+    exportIntro: 'Ranked from the demo places and reports on this device. Copy, download, or print the list to share it.',
     exportOpen: (count: number) => `${count} open`,
     exportCopy: 'Copy list',
     exportCopied: 'Copied',
@@ -63,12 +65,11 @@ const copy = {
     exportEmpty: 'No open barriers. Every mapped place is passable right now.',
     exportBlocks: 'Blocks',
     exportNote: 'Student note',
-    exportAlready: 'Already passable',
+    exportAlready: 'Recorded as passable',
     exportPin: 'Pin',
-    exportFooter: 'Generated locally from student reports. Demo data, not an official facilities record.',
+    exportFooter: 'Includes demo places and local reports. Verify conditions with the school before acting.',
     exportNoAccount: 'No account. No server. Data stays on this device.',
     allClear: 'Nothing is blocked.',
-    gateRamp: 'Main-gate ramp',
     all: 'All',
     cannotEnter: 'Blocked',
     canEnter: 'Passable',
@@ -97,26 +98,33 @@ const copy = {
     locate: 'Live location',
     stopLocate: 'Stop location',
     away: (distance: string) => `${distance} from campus`,
-    nearPlace: (title: string, distance: string) => `${distance} from ${title}`,
+    locAccuracy: (radius: string) => `Estimated location accuracy radius: ${radius}.`,
+    locImprecise: (radius: string) => `Estimated location accuracy radius: ${radius}. Too imprecise to identify a nearby place.`,
+    locReportAccuracy: (radius: string) => `Estimated location accuracy radius: ${radius}. Check the pin and click the map to move it if needed.`,
+    unknownCoords: 'Coordinate source unknown. Check the pin on the map.',
+    exportCopyError: 'Could not copy. Try downloading CSV or printing.',
     locDenied: 'Location permission was denied.',
     locUnsupported: 'This browser cannot read your location.',
     near: (title: string, verdict: string, detail: string) =>
       `Near ${title}. ${verdict}. ${detail}`,
-    far: (distance: string, title: string, detail: string) =>
-      `You are ${distance} from campus. Fix ${title} first. ${detail}`,
-    markFixed: 'Mark fixed',
+    markFixed: 'Mark passable',
     reopen: 'Report again',
     reset: 'Restore the six campus places',
-    saveError: 'This browser could not save the photo. Try a smaller one.',
+    saveQuota: 'Browser storage is full. If the report has a photo, remove it or choose a smaller one, then try again.',
+    saveUnavailable: 'AccessMap could not read or write browser storage. Check that this site can use local storage, then try again.',
+    removePhoto: 'Remove photo',
+    photoLoading: 'Preparing photo…',
+    photoError: 'Could not read the photo. Choose another one or remove it.',
+    previousNote: 'Earlier observation',
+    passableLocal: 'This device records the place as passable. Confirm conditions before travelling.',
+    blockedLocal: 'This device records an access problem. The cause has yet to be recorded.',
+    blockedLocalImpact: 'Access has been flagged as blocked.',
     photoAlt: 'Photo',
     photoPreview: 'Photo preview',
     legend: 'ST stairs · NR no ramp · EL elevator · OK passable',
     audienceLabel: 'Who is looking',
     statusLabel: 'Filter by access',
     typeLabel: 'Filter by type',
-    walk1: 'The main gate has stairs and no ramp. A wheelchair cannot enter the school here.',
-    walk2: 'The main teaching building already has an elevator. Class is reachable.',
-    walk3: 'So this week, build one ramp at the main gate. The lab, library, and gym come after.',
     formTitle: 'Report this place',
     formWhere: 'Location',
     formName: 'Place name',
@@ -125,13 +133,21 @@ const copy = {
     formNote: 'Note for the next person',
     formNotePh: 'Stairs only. A wheelchair cannot go up. Use the ground floor.',
     formPhoto: 'Photo, optional',
+    observedOn: 'Observation date',
+    observationSource: 'Evidence source',
+    optional: 'optional',
+    sourcePlaceholder: 'For example, direct observation or a public notice URL',
+    demoEvidence: 'Manual demo point',
+    localEvidence: 'Local report',
+    missingEvidence: 'Unrecorded',
+    recordId: 'Record ID',
     cancel: 'Cancel',
     save: 'Save',
     verdict: {
       elevator: 'Elevator out',
       blocked: 'Blocked',
       enter: 'Passable',
-      repaired: 'Fixed',
+      repaired: 'Marked passable',
     },
     type: {
       stairs: 'Stairs',
@@ -145,6 +161,7 @@ const copy = {
     } as Record<PinStatus, string>,
   },
   zh: {
+    postContest: 'Neighborhood Hacks 2026 · 赛后迭代',
     campus: '七台河市第一中学',
     blockedCount: '进不去',
     openCount: '能进入',
@@ -164,13 +181,13 @@ const copy = {
     placesLabel: '校园地点',
     mapLabel: '七台河市第一中学校园地图。同样的地点也列在侧栏里。',
     skipToMain: '跳到地图和上报',
-    productLine: '七台河市第一中学无障碍地图。上课前，先看每个入口能不能进。',
+    productLine: '七台河市第一中学轮椅通行演示记录。',
     routeLine: '已标注：正门、主教学楼、实验楼、图书馆、食堂、体育馆。',
     schoolAction: '给学校',
     exportCta: '本周修缮优先级',
     exportCtaHint: '复制一份给后勤或班主任。',
     exportDialogLabel: '修缮优先级',
-    exportIntro: '按这台设备上的学生上报排序。可以直接发微信、邮件，或打印。',
+    exportIntro: '按本机的演示地点与上报记录排序。可复制、下载或打印清单后转交。',
     exportOpen: (count: number) => `${count} 处未解决`,
     exportCopy: '复制清单',
     exportCopied: '已复制',
@@ -180,12 +197,11 @@ const copy = {
     exportEmpty: '现在没有未解决的障碍，地图上的地点都可以进入。',
     exportBlocks: '影响',
     exportNote: '学生说明',
-    exportAlready: '已经可以通行',
+    exportAlready: '记录为可以通行',
     exportPin: '坐标',
-    exportFooter: '由学生上报在本机生成。演示数据，不是学校正式工单。',
+    exportFooter: '包含演示地点与本机上报。处理前请与学校核实。',
     exportNoAccount: '无需账号，不上传服务器，数据只在本机。',
     allClear: '现在没有未解决的障碍。',
-    gateRamp: '正门坡道',
     all: '全部',
     cannotEnter: '进不去',
     canEnter: '能进入',
@@ -214,26 +230,33 @@ const copy = {
     locate: '实时定位',
     stopLocate: '停止定位',
     away: (distance: string) => `离校园${distance}`,
-    nearPlace: (title: string, distance: string) => `离${title}${distance}`,
+    locAccuracy: (radius: string) => `定位估计精度半径：${radius}。`,
+    locImprecise: (radius: string) => `定位估计精度半径：${radius}，无法可靠判断附近地点。`,
+    locReportAccuracy: (radius: string) => `定位估计精度半径：${radius}。请检查钉点，需要时点击地图调整。`,
+    unknownCoords: '坐标来源不明，请在地图上核对位置。',
+    exportCopyError: '无法复制。可下载 CSV 或打印。',
     locDenied: '没有获得定位权限。',
     locUnsupported: '这个浏览器读不了位置。',
     near: (title: string, verdict: string, detail: string) =>
       `靠近${title}。${verdict}。${detail}`,
-    far: (distance: string, title: string, detail: string) =>
-      `你离校园大约${distance}。本周先修${title}。${detail}`,
-    markFixed: '标成已经修好',
+    markFixed: '标为可以通行',
     reopen: '又遇到问题了',
     reset: '恢复校园最初的 6 个地点',
-    saveError: '这个浏览器存不下了。照片请换小一点的。',
+    saveQuota: '浏览器存储空间已满。如果上报附有照片，请移除照片或换小图后重试。',
+    saveUnavailable: '无法读取或写入浏览器存储。请检查此站点是否可以使用本地存储，再重试。',
+    removePhoto: '移除照片',
+    photoLoading: '正在处理照片…',
+    photoError: '无法读取照片，请换一张或移除照片。',
+    previousNote: '此前观察',
+    passableLocal: '本机记录标为可以通行。出行前请确认现场情况。',
+    blockedLocal: '本机记录标为受阻，原因待补充。',
+    blockedLocalImpact: '已记录通行受阻。',
     photoAlt: '的照片',
     photoPreview: '照片预览',
     legend: '阶 台阶 · 坡 无坡道 · 梯 电梯故障 · 通 可通行',
     audienceLabel: '给谁看',
     statusLabel: '按能不能进筛选',
     typeLabel: '按障碍类型筛选',
-    walk1: '正门有台阶、没有坡道。坐轮椅的同学从这里进不了学校。',
-    walk2: '主教学楼已经有电梯。课可以上。',
-    walk3: '所以本周只做一件事：给正门加坡道。实验楼、图书馆、体育馆排在后面。',
     formTitle: '上报这一处',
     formWhere: '位置',
     formName: '地点名称',
@@ -242,13 +265,21 @@ const copy = {
     formNote: '给下一个人的说明',
     formNotePh: '只有台阶，轮椅上不去，请走一楼。',
     formPhoto: '照片（可以不传）',
+    observedOn: '观察日期',
+    observationSource: '证据来源',
+    optional: '选填',
+    sourcePlaceholder: '例如亲眼观察或公开公告链接',
+    demoEvidence: '手工演示点',
+    localEvidence: '本机上报',
+    missingEvidence: '未记录',
+    recordId: '记录编号',
     cancel: '取消',
     save: '保存',
     verdict: {
       elevator: '电梯用不了',
       blocked: '现在进不去',
       enter: '可以进入',
-      repaired: '已经修好',
+      repaired: '已标为可以通行',
     },
     type: {
       stairs: '台阶',
@@ -344,12 +375,33 @@ const seedCopy: Record<string, Record<Lang, { title: string; note: string; affec
   },
 }
 
-export function displayPin(pin: AccessPin, lang: Lang): { title: string; note: string; affects?: string } {
-  return seedCopy[pin.id]?.[lang] ?? { title: pin.title, note: pin.note, affects: pin.affects }
+export function displayPin(pin: AccessPin, lang: Lang): {
+  title: string
+  note: string
+  affects?: string
+  previousNote?: string
+} {
+  const original = seedCopy[pin.id]?.[lang] ?? { title: pin.title, note: pin.note, affects: pin.affects }
+  const seed = SEED_PINS.find((item) => item.id === pin.id)
+  const text = t(lang)
+  if (pin.status === 'fixed' && seed?.status !== 'fixed') {
+    return { title: original.title, note: text.passableLocal, previousNote: original.note }
+  }
+  if (pin.status === 'open' && seed?.status === 'fixed') {
+    return {
+      title: original.title,
+      note: text.blockedLocal,
+      affects: text.blockedLocalImpact,
+      previousNote: original.note,
+    }
+  }
+  return original
 }
 
 export function verdictLabel(pin: AccessPin, lang: Lang): string {
-  return t(lang).verdict[placeVerdict(pin).key]
+  const verdict = placeVerdict(pin)
+  const seed = SEED_PINS.find((item) => item.id === pin.id)
+  return t(lang).verdict[verdict.ok && seed?.status !== 'fixed' ? 'repaired' : verdict.key]
 }
 
 export function pinGlyph(pin: AccessPin, lang: Lang): string {
@@ -359,4 +411,13 @@ export function pinGlyph(pin: AccessPin, lang: Lang): string {
   if (pin.type === 'no_ramp') return lang === 'zh' ? '坡' : 'NR'
   if (pin.type === 'elevator_broken') return lang === 'zh' ? '梯' : 'EL'
   return lang === 'zh' ? '阻' : 'NO'
+}
+
+export function observationEvidence(pin: AccessPin, lang: Lang) {
+  const text = t(lang)
+  return {
+    kind: SEED_PINS.some((seed) => seed.id === pin.id) ? text.demoEvidence : text.localEvidence,
+    date: pin.observedOn || text.missingEvidence,
+    source: pin.observationSource || text.missingEvidence,
+  }
 }

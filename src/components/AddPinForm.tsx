@@ -48,6 +48,7 @@ interface AddPinFormProps {
   draftLng: number | null
   defaultTitle?: string
   placeLabel?: string
+  coordinateSystem?: AccessPin['coordinateSystem']
   onSubmit: (pin: Omit<AccessPin, 'id' | 'createdAt' | 'status'>) => void
 }
 
@@ -57,6 +58,7 @@ export function AddPinForm({
   draftLng,
   defaultTitle,
   placeLabel,
+  coordinateSystem,
   onSubmit,
 }: AddPinFormProps) {
   const text = t(lang)
@@ -64,7 +66,12 @@ export function AddPinForm({
   const titleEdited = useRef(false)
   const [type, setType] = useState<BarrierType>('stairs')
   const [note, setNote] = useState('')
+  const [observedOn, setObservedOn] = useState('')
+  const [observationSource, setObservationSource] = useState('')
   const [photoDataUrl, setPhotoDataUrl] = useState<string | undefined>()
+  const [photoState, setPhotoState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const photoInput = useRef<HTMLInputElement>(null)
+  const photoRequest = useRef(0)
 
   useEffect(() => {
     // A new picker choice should retitle the form unless the visitor typed one.
@@ -74,31 +81,34 @@ export function AddPinForm({
   if (draftLat == null || draftLng == null) return null
 
   function handlePhoto(file: File | undefined) {
-    if (!file) {
-      setPhotoDataUrl(undefined)
-      return
-    }
-    void compressPhoto(file).then(setPhotoDataUrl).catch(() => {
-      setPhotoDataUrl(undefined)
+    const request = ++photoRequest.current
+    setPhotoDataUrl(undefined)
+    setPhotoState(file ? 'loading' : 'idle')
+    if (!file) return
+    void compressPhoto(file).then((photo) => {
+      if (request !== photoRequest.current) return
+      setPhotoDataUrl(photo)
+      setPhotoState('idle')
+    }).catch(() => {
+      if (request === photoRequest.current) setPhotoState('error')
     })
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (photoState !== 'idle') return
     if (!title.trim() || !note.trim() || draftLat == null || draftLng == null) return
     onSubmit({
       title: title.trim(),
       type,
       note: note.trim(),
+      observedOn: observedOn || undefined,
+      observationSource: observationSource.trim() || undefined,
       lat: draftLat,
       lng: draftLng,
       photoDataUrl,
+      coordinateSystem,
     })
-    titleEdited.current = false
-    setTitle('')
-    setType('stairs')
-    setNote('')
-    setPhotoDataUrl(undefined)
   }
 
   return (
@@ -149,13 +159,37 @@ export function AddPinForm({
         />
       </label>
       <label>
+        {text.observedOn} ({text.optional})
+        <input type="date" value={observedOn} onChange={(event) => setObservedOn(event.target.value)} />
+      </label>
+      <label>
+        {text.observationSource} ({text.optional})
+        <input
+          value={observationSource}
+          onChange={(event) => setObservationSource(event.target.value)}
+          placeholder={text.sourcePlaceholder}
+        />
+      </label>
+      <label>
         {text.formPhoto}
         <input
           type="file"
+          ref={photoInput}
           accept="image/*"
           onChange={(e) => handlePhoto(e.target.files?.[0])}
         />
       </label>
+      {photoState === 'loading' ? <p role="status">{text.photoLoading}</p> : null}
+      {photoState === 'error' ? <p role="alert">{text.photoError}</p> : null}
+      {photoDataUrl || photoState !== 'idle' ? (
+        <button type="button" className="btn" onClick={() => {
+          if (photoInput.current) photoInput.current.value = ''
+          handlePhoto(undefined)
+          photoInput.current?.focus()
+        }}>
+          {text.removePhoto}
+        </button>
+      ) : null}
       {photoDataUrl ? (
         <img src={photoDataUrl} alt={text.photoPreview} className="photo-preview" />
       ) : null}

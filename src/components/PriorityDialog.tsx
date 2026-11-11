@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { displayPin, t, type Lang } from '../i18n'
 import { buildRepairCsv, buildRepairPriorities, buildRepairText, repairOrder } from '../repair'
 import type { AccessPin } from '../types'
 
 interface PriorityDialogProps {
   open: boolean
+  triggerRef: RefObject<HTMLButtonElement | null>
   pins: AccessPin[]
   lang: Lang
   onClose: () => void
@@ -18,18 +19,22 @@ function fallbackCopy(value: string): boolean {
   area.style.opacity = '0'
   document.body.appendChild(area)
   area.select()
-  const ok = document.execCommand('copy')
-  area.remove()
-  return ok
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    area.remove()
+  }
 }
 
-export function PriorityDialog({ open, pins, lang, onClose }: PriorityDialogProps) {
+export function PriorityDialog({ open, triggerRef, pins, lang, onClose }: PriorityDialogProps) {
   const text = t(lang)
   const panelRef = useRef<HTMLElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const copyRef = useRef<HTMLButtonElement | null>(null)
   const copyTimer = useRef<number | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
 
   const priorities = useMemo(() => buildRepairPriorities(pins, lang), [pins, lang])
   const fixed = useMemo(
@@ -41,7 +46,8 @@ export function PriorityDialog({ open, pins, lang, onClose }: PriorityDialogProp
 
   useEffect(() => {
     if (!open) return
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setCopyState('idle')
+    const previous = triggerRef.current
     const oldOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const focusTimer = window.setTimeout(() => copyRef.current?.focus(), 0)
@@ -51,7 +57,7 @@ export function PriorityDialog({ open, pins, lang, onClose }: PriorityDialogProp
       if (copyTimer.current != null) window.clearTimeout(copyTimer.current)
       previous?.focus()
     }
-  }, [open])
+  }, [open, triggerRef])
 
   if (!open) return null
 
@@ -84,11 +90,11 @@ export function PriorityDialog({ open, pins, lang, onClose }: PriorityDialogProp
       ok = true
     } catch {
       ok = fallbackCopy(plainText)
+      copyRef.current?.focus()
     }
-    if (!ok) return
-    setCopied(true)
     if (copyTimer.current != null) window.clearTimeout(copyTimer.current)
-    copyTimer.current = window.setTimeout(() => setCopied(false), 2500)
+    setCopyState(ok ? 'copied' : 'error')
+    if (ok) copyTimer.current = window.setTimeout(() => setCopyState('idle'), 2500)
   }
 
   function downloadCsv() {
@@ -181,7 +187,7 @@ export function PriorityDialog({ open, pins, lang, onClose }: PriorityDialogProp
 
         <div className="dialog-actions">
           <button type="button" className="btn primary" ref={copyRef} onClick={() => void copyList()}>
-            {copied ? text.exportCopied : text.exportCopy}
+            {copyState === 'copied' ? text.exportCopied : text.exportCopy}
           </button>
           <button type="button" className="btn" onClick={downloadCsv}>
             {text.exportCsv}
@@ -193,8 +199,9 @@ export function PriorityDialog({ open, pins, lang, onClose }: PriorityDialogProp
             {text.exportClose}
           </button>
         </div>
+        {copyState === 'error' ? <p className="error" role="alert">{text.exportCopyError}</p> : null}
         <p className="sr-only" role="status" aria-live="polite">
-          {copied ? text.exportCopied : ''}
+          {copyState === 'copied' ? text.exportCopied : ''}
         </p>
       </section>
     </div>

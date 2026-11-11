@@ -13,6 +13,7 @@ export const CAMPUS_CENTER: [number, number] = [45.868334, 131.042813]
 
 export const SEED_PINS: AccessPin[] = [
   {
+    coordinateSystem: 'GCJ-02',
     id: 'seed-1',
     title: '正门 / 门卫',
     type: 'no_ramp',
@@ -25,6 +26,7 @@ export const SEED_PINS: AccessPin[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
+    coordinateSystem: 'GCJ-02',
     id: 'seed-2',
     title: '主教学楼',
     type: 'other',
@@ -37,6 +39,7 @@ export const SEED_PINS: AccessPin[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
+    coordinateSystem: 'GCJ-02',
     id: 'seed-3',
     title: '实验楼',
     type: 'stairs',
@@ -49,6 +52,7 @@ export const SEED_PINS: AccessPin[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
+    coordinateSystem: 'GCJ-02',
     id: 'seed-4',
     title: '图书馆',
     type: 'stairs',
@@ -61,6 +65,7 @@ export const SEED_PINS: AccessPin[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
+    coordinateSystem: 'GCJ-02',
     id: 'seed-5',
     title: '食堂',
     type: 'other',
@@ -73,6 +78,7 @@ export const SEED_PINS: AccessPin[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
+    coordinateSystem: 'GCJ-02',
     id: 'seed-6',
     title: '体育馆 / 操场入口',
     type: 'stairs',

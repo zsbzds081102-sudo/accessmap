@@ -9,7 +9,7 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
-import { distanceMeters } from '../geo'
+import { distanceMeters, NEARBY_METERS, type MapPosition } from '../geo'
 import { displayPin, pinGlyph, t, verdictLabel, type Lang } from '../i18n'
 import { CAMPUS_BOUNDS, CAMPUS_CENTER } from '../seed'
 import { placeVerdict, type AccessPin } from '../types'
@@ -72,13 +72,17 @@ function ClickToAdd({
 function FollowUser({
   position,
 }: {
-  position: { lat: number; lng: number } | null
+  position: MapPosition | null
 }) {
   const map = useMap()
   const seen = useRef<string>('')
 
   useEffect(() => {
-    if (!position) return
+    if (!position) {
+      seen.current = ''
+      return
+    }
+    if (position.accuracy >= NEARBY_METERS) return
     const away = distanceMeters(position.lat, position.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1])
     if (away > 3000) return
     const key = `${position.lat.toFixed(4)},${position.lng.toFixed(4)}`
@@ -109,7 +113,8 @@ function FocusSelected({
     if (!pin) return
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     map.flyTo([pin.lat, pin.lng], Math.max(map.getZoom(), focusZoom), {
-      duration: reduceMotion ? 0 : 0.45,
+      animate: !reduceMotion,
+      duration: 0.45,
     })
   }, [map, selectedId, focusZoom])
 
@@ -145,6 +150,7 @@ function PinMarker({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Enter' && event.key !== ' ') return
       event.preventDefault()
+      event.stopPropagation()
       onSelect(pin.id)
     }
     element.addEventListener('keydown', onKeyDown)
@@ -190,7 +196,7 @@ function PinMarker({
 interface MapViewProps {
   pins: AccessPin[]
   lang: Lang
-  userPos: { lat: number; lng: number } | null
+  userPos: MapPosition | null
   draft: { lat: number; lng: number } | null
   reporting: boolean
   selectedId: string | null

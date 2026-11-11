@@ -8,12 +8,12 @@ import {
 import { AddPinForm } from './components/AddPinForm'
 import { MapView } from './components/MapView'
 import { PriorityDialog } from './components/PriorityDialog'
-import { distanceMeters, formatDistance } from './geo'
-import { displayPin, loadLang, pinGlyph, storeLang, t, verdictLabel, type Lang } from './i18n'
+import { distanceMeters, formatDistance, geolocationToMapPosition, isNearby, NEARBY_METERS, type MapPosition } from './geo'
+import { displayPin, loadLang, observationEvidence, pinGlyph, storeLang, t, verdictLabel, type Lang } from './i18n'
 import { buildRepairText, repairOrder } from './repair'
 import { CAMPUS_CENTER, SEED_PINS } from './seed'
 import { loadSound, speak, stopSpeaking, storeSound } from './speech'
-import { loadPins, savePins } from './storage'
+import { loadPins, updatePins, PINS_STORAGE_KEY, type SaveError } from './storage'
 import {
   BARRIER_TYPES,
   placeVerdict,
@@ -27,10 +27,10 @@ type TypeFilter = BarrierType | 'all'
 type StatusFilter = PinStatus | 'all'
 type Audience = 'student' | 'school'
 
-const WALKTHROUGH: Array<{ pinId: string; audience: Audience; key: 'walk1' | 'walk2' | 'walk3' }> = [
-  { pinId: 'seed-1', audience: 'student', key: 'walk1' },
-  { pinId: 'seed-2', audience: 'student', key: 'walk2' },
-  { pinId: 'seed-1', audience: 'school', key: 'walk3' },
+const WALKTHROUGH: Array<{ pinId: string; audience: Audience }> = [
+  { pinId: 'seed-1', audience: 'student' },
+  { pinId: 'seed-2', audience: 'student' },
+  { pinId: 'seed-1', audience: 'school' },
 ]
 
 const LANG_ORDER: Lang[] = ['en', 'zh']
@@ -45,6 +45,8 @@ export default function App() {
     lng: number
     label?: string
     prefillTitle?: string
+    accuracy?: number
+    coordinateSystem?: AccessPin['coordinateSystem']
   } | null>(null)
   const [reporting, setReporting] = useState(false)
   const [audience, setAudience] = useState<Audience>('student')
@@ -52,15 +54,17 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(() => loadLang())
   const [sound, setSound] = useState(() => loadSound())
   const [locating, setLocating] = useState(false)
-  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null)
+  const [userPos, setUserPos] = useState<MapPosition | null>(null)
   const [locError, setLocError] = useState<'denied' | 'unsupported' | 'unavailable' | null>(null)
-  const [saveError, setSaveError] = useState<'quota' | null>(null)
+  const [saveError, setSaveError] = useState<SaveError | null>(null)
   const [caption, setCaption] = useState('')
   const [toast, setToast] = useState<{ id: number; message: string; undo?: () => void } | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
   const toastTimer = useRef<number | null>(null)
   const watchRef = useRef<number | null>(null)
+  const watchRequest = useRef(0)
+  const reportRequest = useRef(0)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const pickerRef = useRef<HTMLElement | null>(null)
   const langButtons = useRef<Record<Lang, HTMLButtonElement | null>>({ en: null, zh: null })
@@ -105,8 +109,20 @@ export default function App() {
   }
 
   useEffect(() => {
-    setSaveError(savePins(pins))
-  }, [pins])
+    function refreshPins(event: StorageEvent) {
+      if (event.key === null || event.key === PINS_STORAGE_KEY) setPins(loadPins())
+    }
+    window.addEventListener('storage', refreshPins)
+    return () => window.removeEventListener('storage', refreshPins)
+  }, [])
+
+  function commitPins(update: (current: AccessPin[]) => AccessPin[]) {
+    const result = updatePins(update)
+    setSaveError(result.error ?? null)
+    if (result.error) return false
+    setPins(result.pins)
+    return true
+  }
 
   useEffect(() => {
     return () => {
@@ -145,6 +161,7 @@ export default function App() {
   }, [draft])
 
   useEffect(() => {
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
     storeLang(lang)
     // Do not leave an old-language sentence talking over the new UI.
     stopSpeaking()
@@ -187,16 +204,19 @@ export default function App() {
 
   useEffect(() => {
     return () => {
+      watchRequest.current++
+      reportRequest.current++
       if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
     }
   }, [])
 
-  function announceHere(here: { lat: number; lng: number }) {
+  function announceHere(here: MapPosition) {
     const language = langRef.current
     const list = pinsRef.current
     let nearest: AccessPin | null = null
     let best = Number.POSITIVE_INFINITY
     for (const pin of list) {
+      if (!pin.coordinateSystem) continue
       const meters = distanceMeters(here.lat, here.lng, pin.lat, pin.lng)
       if (meters < best) {
         best = meters
@@ -205,8 +225,8 @@ export default function App() {
     }
     const campus = distanceMeters(here.lat, here.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1])
     const phrase = t(language)
-    if (nearest && best < 120) {
-      const key = `near:${nearest.id}:${language}`
+    if (nearest && isNearby(best, here.accuracy)) {
+      const key = `near:${nearest.id}:${nearest.status}:${language}`
       if (spokenRef.current === key) return
       spokenRef.current = key
       const shown = displayPin(nearest, language)
@@ -221,12 +241,14 @@ export default function App() {
       speak(nearLine, language, soundRef.current)
       return
     }
-    const key = `far:${Math.round(campus / 500)}:${language}`
+    const uncertain = here.accuracy >= NEARBY_METERS || best - here.accuracy < NEARBY_METERS
+    const key = `${uncertain ? 'uncertain' : 'far'}:${Math.round(campus / 500)}:${language}`
     if (spokenRef.current === key) return
     spokenRef.current = key
-    const fix = repairOrder(list).find((pin) => pin.status === 'open')
-    const shown = fix ? displayPin(fix, language) : null
-    const farLine = phrase.far(formatDistance(campus, language), shown?.title ?? '', shown?.affects ?? '')
+    const distance = formatDistance(campus, language)
+    const farLine = uncertain
+      ? phrase.locImprecise(formatDistance(here.accuracy, language))
+      : phrase.away(distance)
     // Keep the answer card honest: a far-away reading is not about the pin the
     // visitor selected earlier, so drop that selection before showing the line.
     selectedIdRef.current = null
@@ -239,6 +261,9 @@ export default function App() {
   function toggleLocate() {
     setWalkStep(-1)
     if (locating) {
+      watchRequest.current++
+      setUserPos(null)
+      if (spokenRef.current) setCaption('')
       if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
       watchRef.current = null
       setLocating(false)
@@ -254,13 +279,21 @@ export default function App() {
     setLocError(null)
     setLocating(true)
     spokenRef.current = ''
+    const request = ++watchRequest.current
     watchRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        const here = { lat: position.coords.latitude, lng: position.coords.longitude }
+        if (request !== watchRequest.current) return
+        const here = geolocationToMapPosition(position.coords)
         setUserPos(here)
+        setLocError(null)
         announceHere(here)
       },
       (error) => {
+        if (request !== watchRequest.current) return
+        watchRequest.current++
+        setUserPos(null)
+        if (spokenRef.current) setCaption('')
+        stopSpeaking()
         setLocError(error.code === 1 ? 'denied' : 'unavailable')
         setLocating(false)
         if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
@@ -275,14 +308,20 @@ export default function App() {
       setLocError('unsupported')
       return
     }
+    const request = ++reportRequest.current
+    setLocError(null)
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const here = { lat: position.coords.latitude, lng: position.coords.longitude }
-        setUserPos(here)
+        if (request !== reportRequest.current) return
+        const here = geolocationToMapPosition(position.coords)
+        const copy = t(langRef.current)
         setLocError(null)
-        setDraft({ ...here, label: text.myLocation, prefillTitle: text.nearMeTitle })
+        setDraft({ ...here, coordinateSystem: 'GCJ-02', label: copy.myLocation, prefillTitle: copy.nearMeTitle })
       },
-      (error) => setLocError(error.code === 1 ? 'denied' : 'unavailable'),
+      (error) => {
+        if (request !== reportRequest.current) return
+        setLocError(error.code === 1 ? 'denied' : 'unavailable')
+      },
       { enableHighAccuracy: true, timeout: 12000 },
     )
   }
@@ -352,7 +391,8 @@ export default function App() {
       status: 'open',
       createdAt: new Date().toISOString(),
     }
-    setPins((current) => [pin, ...current])
+    setToast(null)
+    if (!commitPins((current) => [pin, ...current])) return
     setSelectedId(pin.id)
     setTypeFilter('all')
     setStatusFilter('all')
@@ -367,16 +407,21 @@ export default function App() {
     const pin = pins.find((item) => item.id === id)
     if (!pin) return
     const wasOpen = pin.status === 'open'
+    const nextStatus = wasOpen ? 'fixed' : 'open'
+    setToast(null)
+    if (!commitPins((current) => current.map((item) =>
+      item.id === id ? { ...item, status: nextStatus } : item,
+    ))) return
+    if (statusFilter !== 'all' && statusFilter !== nextStatus) setStatusFilter('all')
     setWalkStep(-1)
-    setPins((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, status: wasOpen ? 'fixed' : 'open' } : item,
-      ),
-    )
     showToast(wasOpen ? text.toastMarkedFixed : text.toastReportedAgain, () => {
-      setPins((current) =>
-        current.map((item) => (item.id === id ? { ...item, status: pin.status } : item)),
-      )
+      if (commitPins((current) => current.map((item) =>
+        item.id === id && item.status === nextStatus ? { ...item, status: pin.status } : item,
+      ))) {
+        setToast(null)
+      } else if (toastTimer.current != null) {
+        window.clearTimeout(toastTimer.current)
+      }
     })
   }
 
@@ -387,8 +432,11 @@ export default function App() {
   }
 
   function resetCampus() {
+    setToast(null)
+    if (!commitPins(() => SEED_PINS.map((pin) => ({ ...pin })))) return
+    watchRequest.current++
+    reportRequest.current++
     stopSpeaking()
-    setPins(SEED_PINS.map((pin) => ({ ...pin })))
     setSelectedId(null)
     setDraft(null)
     setTypeFilter('all')
@@ -412,11 +460,10 @@ export default function App() {
   const selectedPin = selectedId ? (pins.find((pin) => pin.id === selectedId) ?? null) : null
   const featured = selectedPin ?? firstFix
   const walk = walkStep >= 0 ? WALKTHROUGH[walkStep] : null
-  const liveLine = walk
-    ? `${text[walk.key]}${caption ? ` ${caption}` : ''}`
-    : caption
+  const featuredCopy = featured ? displayPin(featured, lang) : null
 
   function playNext() {
+    reportRequest.current++
     const next = (walkStep + 1) % WALKTHROUGH.length
     const beat = WALKTHROUGH[next]
     setWalkStep(next)
@@ -449,14 +496,14 @@ export default function App() {
     let nearest: AccessPin | null = null
     let meters = Number.POSITIVE_INFINITY
     for (const pin of shown) {
-      if (pin.status !== 'open') continue
+      if (pin.status !== 'open' || !pin.coordinateSystem) continue
       const distance = distanceMeters(userPos.lat, userPos.lng, pin.lat, pin.lng)
       if (distance < meters) {
         meters = distance
         nearest = pin
       }
     }
-    return nearest ? { pin: nearest, meters } : null
+    return nearest && isNearby(meters, userPos.accuracy) ? { pin: nearest, meters } : null
   }, [shown, userPos])
 
   return (
@@ -465,12 +512,12 @@ export default function App() {
         <h1>AccessMap — {text.campus}</h1>
         <pre>{printText}</pre>
       </div>
-      <a className="skip-link" href="#main">
+      <a className="skip-link" href="#main" inert={priorityOpen}>
         {text.skipToMain}
       </a>
-      <header className="topbar">
+      <header className="topbar" inert={priorityOpen}>
         <div>
-          <p className="eyebrow">Neighborhood Hacks 2026</p>
+          <p className="eyebrow">{text.postContest}</p>
           <h1>AccessMap</h1>
         </div>
         <div className="campus-block">
@@ -526,7 +573,7 @@ export default function App() {
         </div>
       </header>
 
-      <main id="main" className="workspace" tabIndex={-1}>
+      <main id="main" className="workspace" tabIndex={-1} inert={priorityOpen}>
         <div className="map-pane">
           <MapView
             pins={visiblePins}
@@ -536,7 +583,11 @@ export default function App() {
             reporting={reporting}
             selectedId={selectedId}
             focusZoom={walkStep >= 0 ? 17 : 16}
-            onPickLocation={(lat, lng) => setDraft({ lat, lng })}
+            onPickLocation={(lat, lng) => {
+              reportRequest.current++
+              setLocError(null)
+              setDraft({ lat, lng, coordinateSystem: 'GCJ-02' })
+            }}
             onSelect={(id) => {
               setWalkStep(-1)
               setSelectedId(id)
@@ -548,7 +599,7 @@ export default function App() {
 
         <aside className="sidebar">
           <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-            {liveLine}
+            {caption}
           </p>
           <div className="sidebar-body" ref={bodyRef}>
             {draft ? (
@@ -558,6 +609,7 @@ export default function App() {
                 draftLng={draft.lng}
                 defaultTitle={draft.prefillTitle ?? ''}
                 placeLabel={draft.label}
+                coordinateSystem={draft.coordinateSystem}
                 onSubmit={addPin}
               />
             ) : null}
@@ -577,14 +629,17 @@ export default function App() {
                       key={pin.id}
                       type="button"
                       className="chip"
-                      onClick={() =>
+                      onClick={() => {
+                        reportRequest.current++
+                        setLocError(null)
                         setDraft({
                           lat: pin.lat,
                           lng: pin.lng,
+                          coordinateSystem: pin.coordinateSystem,
                           label: displayPin(pin, lang).title,
                           prefillTitle: displayPin(pin, lang).title,
                         })
-                      }
+                      }}
                     >
                       {displayPin(pin, lang).title}
                     </button>
@@ -633,6 +688,7 @@ export default function App() {
               className="priority-cta"
               ref={priorityButtonRef}
               aria-haspopup="dialog"
+              aria-controls={priorityOpen ? 'priority-dialog' : undefined}
               onClick={() => setPriorityOpen(true)}
             >
               <span className="priority-cta-kicker">{text.schoolAction}</span>
@@ -653,35 +709,17 @@ export default function App() {
                   : text.thisWeek}
             </p>
             <h2>
-              {walk
-                ? walk.audience === 'school'
-                  ? text.gateRamp
-                  : displayPin(pins.find((pin) => pin.id === walk.pinId) ?? pins[0], lang).title
-                : featured
-                  ? displayPin(featured, lang).title
-                  : text.allClear}
+              {selectedPin || !caption ? (featuredCopy?.title ?? text.allClear) : text.locate}
             </h2>
             {caption && !walk ? <p className="speaking">{text.speaking}</p> : null}
             <p className="story">
-              {walk
-                ? text[walk.key]
-                : caption
-                  ? caption
-                  : featured
-                    ? displayPin(featured, lang).affects
-                    : text.allClear}
+              {caption || featuredCopy?.affects || featuredCopy?.note || text.allClear}
             </p>
-            {walk && caption ? (
-              <p className="spoken-line">
-                <span>{text.speaking}</span>
-                {caption}
-              </p>
-            ) : null}
             {walk ? (
               <div className="walk-dots" aria-hidden="true">
                 {WALKTHROUGH.map((beat, index) => (
                   <span
-                    key={beat.key}
+                    key={`${beat.pinId}-${beat.audience}`}
                     className={index === walkStep ? 'is-on' : index < walkStep ? 'is-done' : ''}
                   />
                 ))}
@@ -757,9 +795,10 @@ export default function App() {
               shown.map((pin) => {
                 const verdict = placeVerdict(pin)
                 const shownPin = displayPin(pin, lang)
+                const evidence = observationEvidence(pin, lang)
                 const open = pin.id === selectedId
                 const detailId = `pin-detail-${pin.id}`
-                const away = userPos
+                const away = userPos && userPos.accuracy < NEARBY_METERS && pin.coordinateSystem
                   ? formatDistance(
                       distanceMeters(userPos.lat, userPos.lng, pin.lat, pin.lng),
                       lang,
@@ -782,7 +821,7 @@ export default function App() {
                         }
                       }}
                     >
-                      <span className={verdict.ok ? 'mark ok' : 'mark bad'}>
+                      <span className={verdict.ok ? 'mark ok' : 'mark bad'} aria-hidden="true">
                         {audience === 'school' && !verdict.ok
                           ? (repairRanks.get(pin.id) ?? pinGlyph(pin, lang))
                           : pinGlyph(pin, lang)}
@@ -799,16 +838,22 @@ export default function App() {
                       <div className="place-detail" id={detailId}>
                         {shownPin.affects ? <p className="affects">{shownPin.affects}</p> : null}
                         <p>{shownPin.note}</p>
+                        {shownPin.previousNote ? (
+                          <p className="muted">{text.previousNote} · {shownPin.previousNote}</p>
+                        ) : null}
                         <p className="muted">
                           {text.type[pin.type]} · {text.status[pin.status]}
                         </p>
+                        <p className="muted">
+                          {evidence.kind} · {text.observedOn} {evidence.date} · {text.observationSource} {evidence.source}
+                        </p>
+                        {!pin.coordinateSystem ? <p className="muted">{text.unknownCoords}</p> : null}
                         {pin.photoDataUrl ? (
                           <img src={pin.photoDataUrl} alt={`${shownPin.title} ${text.photoAlt}`} className="detail-photo" />
                         ) : null}
                         <button
                           type="button"
                           className="btn"
-                          aria-pressed={pin.status === 'fixed'}
                           onClick={() => toggleStatus(pin.id)}
                         >
                           {pin.status === 'open' ? text.markFixed : text.reopen}
@@ -826,20 +871,22 @@ export default function App() {
                 className="reset-confirm"
                 role="alertdialog"
                 aria-label={text.resetConfirmTitle}
+                aria-describedby="reset-description"
                 onKeyDown={(event) => {
                   if (event.key !== 'Escape') return
                   event.preventDefault()
                   setConfirmReset(false)
                 }}
               >
-                <p>{text.resetConfirm}</p>
+                <p id="reset-description">{text.resetConfirm}</p>
                 <div className="action-row">
-                  <button type="button" className="btn" ref={resetConfirmRef} onClick={resetCampus}>
+                  <button type="button" className="btn" onClick={resetCampus}>
                     {text.confirmReset}
                   </button>
                   <button
                     type="button"
                     className="btn ghost"
+                    ref={resetConfirmRef}
                     onClick={() => setConfirmReset(false)}
                   >
                     {text.cancel}
@@ -865,10 +912,7 @@ export default function App() {
                 {toast.undo ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      toast.undo?.()
-                      setToast(null)
-                    }}
+                    onClick={toast.undo}
                   >
                     {text.undo}
                   </button>
@@ -885,7 +929,11 @@ export default function App() {
                     {text.cancel}
                   </button>
                 </div>
-                <p className="hint">{text.hintPlace}</p>
+                <p className="hint">
+                  {draft.accuracy === undefined
+                    ? draft.coordinateSystem ? text.hintPlace : text.unknownCoords
+                    : text.locReportAccuracy(formatDistance(draft.accuracy, lang))}
+                </p>
               </>
             ) : (
               <>
@@ -896,6 +944,8 @@ export default function App() {
                     className={reporting ? 'btn' : 'btn primary'}
                     aria-pressed={reporting}
                     onClick={() => {
+                      reportRequest.current++
+                      setLocError(null)
                       setReporting((current) => !current)
                       setDraft(null)
                       setWalkStep(-1)
@@ -914,7 +964,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <p className="hint">
+                <p className="hint" role="status">
                   {locError === 'denied'
                     ? text.locDenied
                     : locError === 'unsupported'
@@ -924,23 +974,19 @@ export default function App() {
                         : reporting
                           ? text.hintReporting
                           : userPos
-                            ? nearestOpen && nearestOpen.meters < 120
-                              ? text.nearPlace(
-                                  displayPin(nearestOpen.pin, lang).title,
-                                  formatDistance(nearestOpen.meters, lang),
-                                )
-                              : text.away(formatDistance(distanceMeters(userPos.lat, userPos.lng, CAMPUS_CENTER[0], CAMPUS_CENTER[1]), lang))
+                            ? text.locAccuracy(formatDistance(userPos.accuracy, lang))
                             : text.hintIdle}
                 </p>
               </>
             )}
 
-            {saveError ? <p className="error" role="alert">{text.saveError}</p> : null}
+            {saveError ? <p className="error" role="alert">{saveError === 'quota' ? text.saveQuota : text.saveUnavailable}</p> : null}
           </div>
         </aside>
       </main>
       <PriorityDialog
         open={priorityOpen}
+        triggerRef={priorityButtonRef}
         pins={pins}
         lang={lang}
         onClose={() => setPriorityOpen(false)}

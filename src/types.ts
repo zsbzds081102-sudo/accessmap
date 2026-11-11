@@ -14,8 +14,12 @@ export interface AccessPin {
   status: PinStatus
   lat: number
   lng: number
+  /** Missing on legacy reports whose coordinate source cannot be determined. */
+  coordinateSystem?: 'GCJ-02'
   photoDataUrl?: string
   createdAt: string
+  observedOn?: string
+  observationSource?: string
   /** 1 means the school should fix this first. Omitted on new reports. */
   priority?: number
   /** Who is blocked, in one sentence a judge can read. */
